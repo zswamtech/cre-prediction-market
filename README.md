@@ -6,16 +6,17 @@
 [![Solidity](https://img.shields.io/badge/Solidity-0.8.24-363636?style=flat&logo=solidity)](https://soliditylang.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?style=flat&logo=typescript)](https://www.typescriptlang.org/)
 [![Network](https://img.shields.io/badge/Network-Sepolia-7B3FE4?style=flat&logo=ethereum)](https://sepolia.etherscan.io/)
-[![CoinGecko](https://img.shields.io/badge/Prices-CoinGecko-8BC53F?style=flat)](https://www.coingecko.com/)
+[![Chainlink Price Feeds](https://img.shields.io/badge/Prices-Chainlink-375BD2?style=flat&logo=chainlink)](https://data.chain.link/)
 
 ---
 
-## 🆕 What's New (v2.0)
+## 🆕 What's New (v2.1)
 
+- 🔗 **Chainlink Price Feeds** - On-chain verified prices for BTC/ETH with 100% confidence
 - ✨ **Cron Trigger Auto-Settlement** - Price markets settle automatically every hour
-- 🔄 **CoinGecko Price Feed** - Real-time BTC/ETH/SOL prices with CRE consensus
+- 🦎 **CoinGecko Fallback** - For assets not on Chainlink (SOL, etc.)
 - 🧠 **Improved AI Prompts** - Better question classification and confidence scoring
-- 📊 **Dual Settlement System** - AI for complex questions, Price API for crypto markets
+- 📊 **Triple Settlement System** - AI + Chainlink + CoinGecko
 
 ---
 
@@ -27,7 +28,8 @@ This project demonstrates a **fully decentralized prediction market** where:
 2. **Participants stake ETH** on their predictions
 3. **Settlement happens automatically:**
    - 🤖 **AI-powered** (Gemini) for complex questions
-   - 📈 **Price-based** (CoinGecko) for crypto price markets
+   - 🔗 **Chainlink Price Feeds** (on-chain verified) for BTC/ETH
+   - 🦎 **CoinGecko** (fallback) for other crypto assets
 4. **CRE ensures trustless settlement** through decentralized consensus
 5. **Winners claim rewards** automatically
 
@@ -41,7 +43,7 @@ Traditional prediction markets rely on centralized oracles that can be manipulat
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         ARCHITECTURE (v2.0)                                 │
+│                         ARCHITECTURE (v2.1)                                 │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │   [User]                                                                    │
@@ -60,13 +62,15 @@ Traditional prediction markets rely on centralized oracles that can be manipulat
 │                    │                                     │                  │
 │          ┌────────┴────────┐               ┌────────────┴────────┐         │
 │          ▼                 ▼               ▼                     ▼         │
-│    [EVM Read]        [CoinGecko]     [EVM Read]           [Gemini AI]      │
-│    (Markets)         (BTC/ETH/SOL)   (Market Data)        (Outcome)        │
+│    [EVM Read]      [Chainlink Feeds]  [EVM Read]           [Gemini AI]     │
+│    (Markets)       (BTC/ETH on-chain) (Market Data)        (Outcome)       │
 │          │                 │               │                     │         │
+│          │          [CoinGecko]            │                     │         │
+│          │          (SOL fallback)         │                     │         │
 │          └────────┬────────┘               └──────────┬──────────┘         │
 │                   ▼                                   ▼                    │
 │            [Price Check]                        [AI Response]              │
-│            (> or < target)                      (YES/NO + confidence)      │
+│            (100% confidence)                   (YES/NO + confidence)       │
 │                   │                                   │                    │
 │                   └───────────────┬───────────────────┘                    │
 │                                   ▼                                        │
@@ -312,10 +316,11 @@ Winners call `claim(marketId)` to receive their proportional share of the pool.
 
 ### Settlement Methods Comparison
 
-| Method | Trigger | Data Source | Best For |
-|--------|---------|-------------|----------|
-| **AI Settlement** | Log (on-demand) | Gemini AI + Google Search | Complex questions, events, sports |
-| **Auto Settlement** | Cron (hourly) | CoinGecko Price API | Crypto price targets (BTC, ETH, SOL) |
+| Method | Trigger | Data Source | Confidence | Best For |
+|--------|---------|-------------|------------|----------|
+| **AI Settlement** | Log (on-demand) | Gemini AI + Google Search | 30-100% | Complex questions, events, sports |
+| **Chainlink Prices** | Cron (hourly) | On-chain Price Feeds | 100% | BTC/ETH price targets |
+| **CoinGecko Fallback** | Cron (hourly) | CoinGecko API | 80-95% | SOL and other crypto |
 
 ---
 
@@ -334,7 +339,8 @@ This project is submitted for **Convergence: A Chainlink Hackathon**
 
 - ✅ CRE workflow as orchestration layer
 - ✅ Integrates blockchain with external AI (Gemini)
-- ✅ Integrates blockchain with external price API (CoinGecko)
+- ✅ **Chainlink Price Feeds** for on-chain verified prices (BTC/ETH)
+- ✅ CoinGecko API as fallback for other assets
 - ✅ Multiple trigger types (Log, Cron, HTTP)
 - ✅ Successful simulations demonstrated (AI + Auto-settlement)
 - ✅ Public source code with documentation

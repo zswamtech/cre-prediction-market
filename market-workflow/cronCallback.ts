@@ -3,10 +3,13 @@
  *
  * This callback runs periodically to:
  * 1. Fetch all active (unsettled) markets
- * 2. Check if price conditions are met using external APIs
+ * 2. Check if price conditions are met using Chainlink Price Feeds
  * 3. Auto-settle markets when conditions are verifiable
  *
- * NEW FEATURE for Hackathon: Automated settlement without manual intervention
+ * UPDATED for Hackathon v2.1:
+ * - Primary: Chainlink Price Feeds (on-chain verified data)
+ * - Fallback: CoinGecko API (for assets not on Chainlink)
+ * - 100% confidence for Chainlink-verified prices
  */
 import {
   cre,
@@ -21,7 +24,6 @@ import {
   type HTTPSendRequester,
 } from "@chainlink/cre-sdk";
 import {
-  parseAbi,
   encodeAbiParameters,
   parseAbiParameters,
   encodeFunctionData,
@@ -68,6 +70,39 @@ interface PriceCondition {
   targetPrice: number;
   byDate?: string;     // Optional deadline
 }
+
+// ================================================================
+// |              CHAINLINK PRICE FEED ADDRESSES (Sepolia)        |
+// ================================================================
+const CHAINLINK_PRICE_FEEDS: Record<string, `0x${string}`> = {
+  ETH: "0x694AA1769357215DE4FAC081bf1f309aDC325306", // ETH/USD
+  BTC: "0x1b44F3514812d835EB1BDB0acB33d3fA3351Ee43", // BTC/USD
+  // LINK: "0xc59E3633BAAC79493d908e63626716e204A45EdF", // LINK/USD (optional)
+};
+
+// Chainlink Aggregator V3 Interface ABI
+const AGGREGATOR_V3_ABI = [
+  {
+    name: "latestRoundData",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [
+      { name: "roundId", type: "uint80" },
+      { name: "answer", type: "int256" },
+      { name: "startedAt", type: "uint256" },
+      { name: "updatedAt", type: "uint256" },
+      { name: "answeredInRound", type: "uint80" },
+    ],
+  },
+  {
+    name: "decimals",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint8" }],
+  },
+] as const;
 
 // ================================================================
 // |                    CONTRACT ABIs                             |
@@ -157,11 +192,69 @@ function parsePriceCondition(question: string): PriceCondition | null {
 // ================================================================
 // |                    PRICE FETCHING                            |
 // ================================================================
+
 /**
- * Fetches current price from CoinGecko API
- * This provides real-time crypto prices for verification
+ * Fetches price from Chainlink Price Feed (on-chain verified data)
+ * Returns null if no Chainlink feed available for the asset
  */
-const fetchCryptoPrice = (
+function fetchChainlinkPrice(
+  runtime: Runtime<Config>,
+  evmClient: InstanceType<typeof cre.capabilities.EVMClient>,
+  asset: string
+): PriceData | null {
+  const feedAddress = CHAINLINK_PRICE_FEEDS[asset];
+  if (!feedAddress) {
+    runtime.log(`[Chainlink] No price feed for ${asset}, using fallback`);
+    return null;
+  }
+
+  try {
+    // Call latestRoundData() on the Chainlink aggregator
+    const callData = encodeFunctionData({
+      abi: AGGREGATOR_V3_ABI,
+      functionName: "latestRoundData",
+    });
+
+    const result = evmClient
+      .callContract(runtime, {
+        call: encodeCallMsg({
+          from: zeroAddress,
+          to: feedAddress,
+          data: callData,
+        }),
+      })
+      .result();
+
+    const decoded = decodeFunctionResult({
+      abi: AGGREGATOR_V3_ABI,
+      functionName: "latestRoundData",
+      data: bytesToHex(result.data),
+    }) as readonly [bigint, bigint, bigint, bigint, bigint];
+
+    // Chainlink price feeds use 8 decimals
+    const answer = decoded[1];
+    const updatedAt = decoded[3];
+    const price = Number(answer) / 1e8;
+
+    runtime.log(`[Chainlink] ${asset}/USD: $${price.toLocaleString()} (verified on-chain)`);
+
+    return {
+      symbol: asset,
+      price,
+      timestamp: Number(updatedAt) * 1000,
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    runtime.log(`[Chainlink] Error fetching ${asset}: ${msg}`);
+    return null;
+  }
+}
+
+/**
+ * Fetches current price from CoinGecko API (fallback)
+ * Used when Chainlink feed is not available
+ */
+const fetchCoinGeckoPrice = (
   runtime: Runtime<Config>,
   asset: string
 ): PriceData => {
@@ -184,8 +277,30 @@ const fetchCryptoPrice = (
   return result;
 };
 
+/**
+ * Main price fetching function - tries Chainlink first, falls back to CoinGecko
+ */
+function fetchCryptoPrice(
+  runtime: Runtime<Config>,
+  asset: string,
+  evmClient?: InstanceType<typeof cre.capabilities.EVMClient>
+): { data: PriceData; source: "chainlink" | "coingecko" } {
+  // Try Chainlink first if evmClient is available
+  if (evmClient) {
+    const chainlinkData = fetchChainlinkPrice(runtime, evmClient, asset);
+    if (chainlinkData) {
+      return { data: chainlinkData, source: "chainlink" };
+    }
+  }
+
+  // Fallback to CoinGecko
+  runtime.log(`[CoinGecko] Fetching ${asset} price as fallback...`);
+  const coinGeckoData = fetchCoinGeckoPrice(runtime, asset);
+  return { data: coinGeckoData, source: "coingecko" };
+}
+
 const buildPriceRequest = (coinId: string) =>
-  (sendRequester: HTTPSendRequester, config: Config): PriceData => {
+  (sendRequester: HTTPSendRequester, _config: Config): PriceData => {
     const url = `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`;
 
     const req = {
@@ -274,7 +389,7 @@ function evaluateCondition(
 // ================================================================
 function settleMarket(
   runtime: Runtime<Config>,
-  evmClient: ReturnType<typeof cre.capabilities.EVMClient>,
+  evmClient: InstanceType<typeof cre.capabilities.EVMClient>,
   marketId: bigint,
   outcome: number,
   confidence: number
@@ -429,18 +544,19 @@ export function onCronTrigger(runtime: Runtime<Config>): string {
     runtime.log(`[Step 2] Found ${marketsToSettle.length} markets to check`);
 
     // ─────────────────────────────────────────────────────────────
-    // Step 3: Fetch current prices
+    // Step 3: Fetch current prices (Chainlink first, CoinGecko fallback)
     // ─────────────────────────────────────────────────────────────
-    runtime.log("[Step 3] Fetching current prices from CoinGecko...");
+    runtime.log("[Step 3] Fetching prices (Chainlink → CoinGecko fallback)...");
 
     // Get unique assets needed
     const assets = [...new Set(marketsToSettle.map(m => m.condition.asset))];
-    const prices: Record<string, number> = {};
+    const prices: Record<string, { price: number; source: "chainlink" | "coingecko" }> = {};
 
     for (const asset of assets) {
-      const priceData = fetchCryptoPrice(runtime, asset);
-      prices[asset] = priceData.price;
-      runtime.log(`[Step 3] ${asset}: $${priceData.price.toLocaleString()}`);
+      const { data, source } = fetchCryptoPrice(runtime, asset, evmClient);
+      prices[asset] = { price: data.price, source };
+      const sourceLabel = source === "chainlink" ? "🔗 Chainlink" : "🦎 CoinGecko";
+      runtime.log(`[Step 3] ${asset}: $${data.price.toLocaleString()} (${sourceLabel})`);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -450,16 +566,21 @@ export function onCronTrigger(runtime: Runtime<Config>): string {
 
     const results: string[] = [];
 
-    for (const { id, market, condition } of marketsToSettle) {
-      const currentPrice = prices[condition.asset];
-      const { met, confidence } = evaluateCondition(condition, currentPrice);
+    for (const { id, condition } of marketsToSettle) {
+      const priceInfo = prices[condition.asset];
+      const currentPrice = priceInfo.price;
+      const { met, confidence: baseConfidence } = evaluateCondition(condition, currentPrice);
+
+      // Chainlink prices get 100% confidence (10000), CoinGecko uses calculated confidence
+      const confidence = priceInfo.source === "chainlink" ? 10000 : baseConfidence;
+      const sourceLabel = priceInfo.source === "chainlink" ? "🔗" : "🦎";
 
       // Determine outcome: 0 = YES, 1 = NO
       const outcome = met ? 0 : 1;
       const outcomeStr = met ? "YES" : "NO";
 
-      runtime.log(`[Step 4] Market #${id}: ${condition.asset} ($${currentPrice}) ${condition.operator} $${condition.targetPrice}`);
-      runtime.log(`[Step 4] → Result: ${outcomeStr} (confidence: ${confidence / 100}%)`);
+      runtime.log(`[Step 4] Market #${id}: ${condition.asset} ($${currentPrice.toLocaleString()}) ${condition.operator} $${condition.targetPrice}`);
+      runtime.log(`[Step 4] → Result: ${outcomeStr} (confidence: ${confidence / 100}%) ${sourceLabel}`);
 
       try {
         const txHash = settleMarket(runtime, evmClient, id, outcome, confidence);

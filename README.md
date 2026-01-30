@@ -10,13 +10,14 @@
 
 ---
 
-## 🆕 What's New (v2.1)
+## 🆕 What's New (v2.2)
 
+- ⚖️ **Dispute Resolution System** - Challenge AI verdicts with stake-based disputes (NEW!)
 - 🔗 **Chainlink Price Feeds** - On-chain verified prices for BTC/ETH with 100% confidence
 - ✨ **Cron Trigger Auto-Settlement** - Price markets settle automatically every hour
 - 🦎 **CoinGecko Fallback** - For assets not on Chainlink (SOL, etc.)
 - 🧠 **Improved AI Prompts** - Better question classification and confidence scoring
-- 📊 **Triple Settlement System** - AI + Chainlink + CoinGecko
+- 📊 **Quad System** - AI + Chainlink + CoinGecko + Disputes
 
 ---
 
@@ -43,7 +44,7 @@ Traditional prediction markets rely on centralized oracles that can be manipulat
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         ARCHITECTURE (v2.1)                                 │
+│                         ARCHITECTURE (v2.2)                                 │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │   [User]                                                                    │
@@ -321,6 +322,75 @@ Winners call `claim(marketId)` to receive their proportional share of the pool.
 | **AI Settlement** | Log (on-demand) | Gemini AI + Google Search | 30-100% | Complex questions, events, sports |
 | **Chainlink Prices** | Cron (hourly) | On-chain Price Feeds | 100% | BTC/ETH price targets |
 | **CoinGecko Fallback** | Cron (hourly) | CoinGecko API | 80-95% | SOL and other crypto |
+| **Dispute Resolution** | Log (on-demand) | Gemini AI (re-evaluation) | Variable | Challenging AI verdicts |
+
+---
+
+## ⚖️ Dispute Resolution System
+
+When AI settlements have low confidence (<90%), participants can challenge the verdict.
+
+### How It Works
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    DISPUTE FLOW                                 │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│   [Market Settled with <90% confidence]                         │
+│                    │                                            │
+│                    ▼                                            │
+│   ┌─────────────────────────────────────┐                       │
+│   │   24-HOUR DISPUTE WINDOW            │                       │
+│   │                                     │                       │
+│   │   Participant calls openDispute()   │                       │
+│   │   + Stakes 0.01 ETH minimum         │                       │
+│   │   + Provides dispute reason         │                       │
+│   └─────────────────────────────────────┘                       │
+│                    │                                            │
+│                    ▼                                            │
+│   [DisputeOpened Event] ─────▶ [CRE Log Trigger]                │
+│                                       │                         │
+│                                       ▼                         │
+│                               [Gemini AI v2]                    │
+│                               (Re-evaluation with               │
+│                                dispute context)                 │
+│                                       │                         │
+│                    ┌──────────────────┴──────────────────┐      │
+│                    ▼                                     ▼      │
+│            [DISPUTE VALID]                     [DISPUTE INVALID]│
+│                    │                                     │      │
+│                    ▼                                     ▼      │
+│           • Outcome reversed               • Outcome maintained │
+│           • Stake returned + 10%           • Stake → winners    │
+│           • New claims enabled             • Claims continue    │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Dispute Rules
+
+| Rule | Value |
+|------|-------|
+| Dispute Window | 24 hours after settlement |
+| Minimum Stake | 0.01 ETH |
+| Eligible Disputers | Market participants only |
+| Disputable Confidence | < 90% (controversial verdicts) |
+| Valid Dispute Reward | Stake + 10% bonus |
+| Invalid Dispute Penalty | Stake goes to winners |
+
+### Smart Contract Functions (PredictionMarketV2.sol)
+
+```solidity
+// Open a dispute
+function openDispute(uint256 marketId, string reason) external payable;
+
+// Check if market can be disputed
+function canDispute(uint256 marketId) external view returns (bool);
+
+// Check if claims are available
+function canClaim(uint256 marketId) external view returns (bool);
+```
 
 ---
 
@@ -341,7 +411,8 @@ This project is submitted for **Convergence: A Chainlink Hackathon**
 - ✅ Integrates blockchain with external AI (Gemini)
 - ✅ **Chainlink Price Feeds** for on-chain verified prices (BTC/ETH)
 - ✅ CoinGecko API as fallback for other assets
-- ✅ Multiple trigger types (Log, Cron, HTTP)
+- ✅ **Dispute Resolution System** for fair AI verdict challenges
+- ✅ Multiple trigger types (Log x2, Cron, HTTP)
 - ✅ Successful simulations demonstrated (AI + Auto-settlement)
 - ✅ Public source code with documentation
 

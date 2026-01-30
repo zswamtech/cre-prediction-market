@@ -99,9 +99,14 @@ Question: `;
  * Queries Gemini AI to determine the outcome of a prediction market
  * @param runtime - CRE runtime with config and secrets access
  * @param question - The prediction market question to evaluate
+ * @param customSystemPrompt - Optional custom system prompt (for disputes, etc.)
  * @returns GeminiResponse with the AI's determination
  */
-export function askGemini(runtime: Runtime<Config>, question: string): GeminiResponse {
+export function askGemini(
+  runtime: Runtime<Config>,
+  question: string,
+  customSystemPrompt?: string
+): GeminiResponse {
   runtime.log("[Gemini] Querying AI for market outcome...");
   runtime.log(`[Gemini] Question: "${question}"`);
 
@@ -109,11 +114,14 @@ export function askGemini(runtime: Runtime<Config>, question: string): GeminiRes
   const geminiApiKey = runtime.getSecret({ id: "GEMINI_API_KEY" }).result();
   const httpClient = new cre.capabilities.HTTPClient();
 
+  // Use custom system prompt if provided, otherwise use default
+  const systemPrompt = customSystemPrompt || SYSTEM_PROMPT;
+
   // Make request with consensus
   const result = httpClient
     .sendRequest(
       runtime,
-      buildGeminiRequest(question, geminiApiKey.value),
+      buildGeminiRequest(question, geminiApiKey.value, systemPrompt),
       consensusIdenticalAggregation<GeminiResponse>()
     )(runtime.config)
     .result();
@@ -126,12 +134,12 @@ export function askGemini(runtime: Runtime<Config>, question: string): GeminiRes
 // |                    REQUEST BUILDER                           |
 // ================================================================
 const buildGeminiRequest =
-  (question: string, apiKey: string) =>
+  (question: string, apiKey: string, systemPrompt: string) =>
   (sendRequester: HTTPSendRequester, config: Config): GeminiResponse => {
     // Estructura CON google_search para búsqueda en tiempo real
     const requestData: GeminiData = {
       system_instruction: {
-        parts: [{ text: SYSTEM_PROMPT }],
+        parts: [{ text: systemPrompt }],
       },
       contents: [
         {

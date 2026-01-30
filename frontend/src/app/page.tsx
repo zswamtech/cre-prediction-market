@@ -1,0 +1,230 @@
+"use client";
+
+import { ConnectKitButton } from "connectkit";
+import { useAccount, useReadContract, useReadContracts } from "wagmi";
+import { formatEther } from "viem";
+import Link from "next/link";
+import {
+  PREDICTION_MARKET_ADDRESS,
+  PREDICTION_MARKET_ABI,
+  DISPUTE_CONFIDENCE_THRESHOLD
+} from "@/lib/contract";
+import { useEffect } from "react";
+
+export default function Home() {
+  const { isConnected } = useAccount();
+
+  const { data: nextMarketId, isLoading, error } = useReadContract({
+    address: PREDICTION_MARKET_ADDRESS,
+    abi: PREDICTION_MARKET_ABI,
+    functionName: "getNextMarketId",
+  });
+
+  // Debug logging
+  useEffect(() => {
+    console.log("nextMarketId:", nextMarketId);
+    console.log("isLoading:", isLoading);
+    console.log("error:", error);
+  }, [nextMarketId, isLoading, error]);
+
+  const marketCount = nextMarketId ? Number(nextMarketId) : 0;
+
+  const marketCalls = Array.from({ length: marketCount }, (_, i) => ({
+    address: PREDICTION_MARKET_ADDRESS,
+    abi: PREDICTION_MARKET_ABI,
+    functionName: "getMarket" as const,
+    args: [BigInt(i)] as const,
+  }));
+
+  const { data: markets } = useReadContracts({
+    contracts: marketCalls,
+  });
+
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <header className="flex justify-between items-center mb-12">
+        <div>
+          <h1 className="text-4xl font-bold text-white mb-2">
+            🔮 CRE Prediction Market
+          </h1>
+          <p className="text-gray-400">
+            Decentralized markets with AI-powered settlement
+          </p>
+        </div>
+        <div className="flex gap-4 items-center">
+          {isConnected && (
+            <Link
+              href="/create"
+              className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-medium transition"
+            >
+              + Create Market
+            </Link>
+          )}
+          <ConnectKitButton />
+        </div>
+      </header>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
+        <div className="bg-gray-800/50 backdrop-blur rounded-xl p-6 border border-gray-700">
+          <p className="text-gray-400 text-sm">Total Markets</p>
+          <p className="text-3xl font-bold text-white">{marketCount}</p>
+        </div>
+        <div className="bg-gray-800/50 backdrop-blur rounded-xl p-6 border border-gray-700">
+          <p className="text-gray-400 text-sm">Active</p>
+          <p className="text-3xl font-bold text-yellow-400">
+            {markets?.filter(m => m.status === "success" && !m.result?.settled).length || 0}
+          </p>
+        </div>
+        <div className="bg-gray-800/50 backdrop-blur rounded-xl p-6 border border-gray-700">
+          <p className="text-gray-400 text-sm">Network</p>
+          <p className="text-2xl font-bold text-purple-400">Sepolia</p>
+        </div>
+        <div className="bg-gray-800/50 backdrop-blur rounded-xl p-6 border border-gray-700">
+          <p className="text-gray-400 text-sm">Oracle</p>
+          <p className="text-2xl font-bold text-blue-400">CRE + AI</p>
+        </div>
+      </div>
+
+      {/* Settlement Methods Info */}
+      <div className="bg-gradient-to-r from-purple-900/30 to-blue-900/30 rounded-xl p-6 border border-purple-700/50 mb-8">
+        <h3 className="text-lg font-semibold text-white mb-3">Settlement Methods</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🤖</span>
+            <div>
+              <p className="text-white font-medium">AI Settlement</p>
+              <p className="text-gray-400">Gemini AI + Google Search</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🔗</span>
+            <div>
+              <p className="text-white font-medium">Chainlink Prices</p>
+              <p className="text-gray-400">On-chain BTC/ETH feeds</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">⚖️</span>
+            <div>
+              <p className="text-white font-medium">Dispute System</p>
+              <p className="text-gray-400">Challenge low-confidence results</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <h2 className="text-2xl font-bold text-white mb-6">Markets</h2>
+
+      {error && (
+        <div className="bg-red-900/50 border border-red-500 rounded-xl p-4 mb-6">
+          <p className="text-red-400 text-sm">
+            Error loading markets: {error.message}
+          </p>
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="bg-gray-800/50 backdrop-blur rounded-xl p-12 border border-gray-700 text-center">
+          <div className="animate-pulse">
+            <div className="h-4 bg-gray-700 rounded w-1/3 mx-auto mb-4"></div>
+            <p className="text-gray-400">Loading markets...</p>
+          </div>
+        </div>
+      ) : marketCount === 0 ? (
+        <div className="bg-gray-800/50 backdrop-blur rounded-xl p-12 border border-gray-700 text-center">
+          <p className="text-gray-400 text-lg">No markets yet.</p>
+          {isConnected && (
+            <Link
+              href="/create"
+              className="inline-block mt-4 bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-medium transition"
+            >
+              Create the first market
+            </Link>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {markets?.map((result, index) => {
+            if (result.status !== "success" || !result.result) return null;
+            const market = result.result;
+
+            return (
+              <Link
+                key={index}
+                href={`/market/${index}`}
+                className="bg-gray-800/50 backdrop-blur rounded-xl p-6 border border-gray-700 hover:border-purple-500 transition group"
+              >
+                <div className="flex justify-between items-start mb-4">
+                  <span className="text-xs bg-purple-600/20 text-purple-400 px-2 py-1 rounded">
+                    Market #{index}
+                  </span>
+                  {market.settled ? (
+                    <span className="text-xs bg-green-600/20 text-green-400 px-2 py-1 rounded">
+                      ✓ Settled
+                    </span>
+                  ) : (
+                    <span className="text-xs bg-yellow-600/20 text-yellow-400 px-2 py-1 rounded">
+                      Active
+                    </span>
+                  )}
+                </div>
+
+                <h3 className="text-lg font-semibold text-white mb-4 group-hover:text-purple-400 transition">
+                  {market.question}
+                </h3>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Yes Pool</span>
+                    <span className="text-green-400">
+                      {formatEther(market.totalYesPool)} ETH
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">No Pool</span>
+                    <span className="text-red-400">
+                      {formatEther(market.totalNoPool)} ETH
+                    </span>
+                  </div>
+                </div>
+
+                {market.settled && (
+                  <div className="mt-4 pt-4 border-t border-gray-700">
+                    <div className="flex justify-between items-center">
+                      <p className="text-sm text-gray-400">
+                        Outcome:{" "}
+                        <span
+                          className={
+                            market.outcome === 0 ? "text-green-400" : "text-red-400"
+                          }
+                        >
+                          {market.outcome === 0 ? "YES" : "NO"}
+                        </span>
+                      </p>
+                      {/* Confidence indicator */}
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded ${
+                          market.confidence >= 10000
+                            ? "bg-blue-600/20 text-blue-400"
+                            : market.confidence >= DISPUTE_CONFIDENCE_THRESHOLD
+                            ? "bg-green-600/20 text-green-400"
+                            : "bg-yellow-600/20 text-yellow-400"
+                        }`}
+                      >
+                        {market.confidence >= 10000
+                          ? "🔗 Verified"
+                          : market.confidence >= DISPUTE_CONFIDENCE_THRESHOLD
+                          ? `${market.confidence / 100}%`
+                          : `⚠ ${market.confidence / 100}%`}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "builds": [
+    { "src": "frontend/next.config.ts", "use": "@vercel/next" }
+  ],
+  "env": {
+    "NEXT_PUBLIC_TEST_MODE": "0"
+  },
+  "framework": "nextjs",
+  "routes": [
+    { "src": "/(.*)", "dest": "/frontend/$1" }
+  ]
+}
+

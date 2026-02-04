@@ -9,16 +9,36 @@ import {
   PREDICTION_MARKET_ABI,
   DISPUTE_CONFIDENCE_THRESHOLD
 } from "@/lib/contract";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 export default function Home() {
   const { isConnected } = useAccount();
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
-  const { data: nextMarketId, isLoading, error } = useReadContract({
+  const { data: nextMarketId, isLoading, error, refetch: refetchMarkets } = useReadContract({
     address: PREDICTION_MARKET_ADDRESS,
     abi: PREDICTION_MARKET_ABI,
     functionName: "getNextMarketId",
+    query: {
+      // ✅ Deshabilitar caché de wagmi
+      gcTime: 0,
+      staleTime: 0,
+    }
   });
+
+  // ✅ Auto-refresh cada 10 segundos
+  useEffect(() => {
+    // Inicializar en el cliente
+    setLastRefresh(new Date());
+    
+    const interval = setInterval(() => {
+      console.log("🔄 Refrescando mercados...");
+      refetchMarkets();
+      setLastRefresh(new Date());
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [refetchMarkets]);
 
   // Debug logging
   useEffect(() => {
@@ -36,9 +56,53 @@ export default function Home() {
     args: [BigInt(i)] as const,
   }));
 
-  const { data: markets } = useReadContracts({
+  const { data: markets, refetch: refetchMarketsList } = useReadContracts({
     contracts: marketCalls,
+    query: {
+      // ✅ Deshabilitar caché de wagmi
+      gcTime: 0,
+      staleTime: 0,
+    }
   });
+
+  // ✅ Debug: Log market states
+  useEffect(() => {
+    if (markets) {
+      console.log("📊 Markets data:", markets);
+      markets.forEach((m, idx) => {
+        if (m.status === "success" && m.result) {
+          console.log(`Market #${idx}:`, {
+            settled: m.result.settled,
+            question: m.result.question,
+            yesPool: formatEther(m.result.totalYesPool),
+            noPool: formatEther(m.result.totalNoPool),
+            outcome: m.result.settled ? (m.result.outcome === 0 ? "YES" : "NO") : "N/A",
+            confidence: m.result.settled ? `${m.result.confidence / 100}%` : "N/A",
+          });
+        }
+      });
+    }
+  }, [markets]);
+
+  // ✅ También refresca la lista de mercados
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (marketCount > 0) {
+        console.log("🔄 Refrescando lista de mercados...");
+        refetchMarketsList();
+      }
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [refetchMarketsList, marketCount]);
+
+  // Función manual de refresh
+  const handleManualRefresh = () => {
+    console.log("🔄 Refresh manual...");
+    refetchMarkets();
+    refetchMarketsList();
+    setLastRefresh(new Date());
+  };
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -64,6 +128,24 @@ export default function Home() {
         </div>
       </header>
 
+      {/* Auto-refresh indicator */}
+      <div className="flex justify-between items-center mb-6">
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-gray-400">
+            Última actualización: {lastRefresh?.toLocaleTimeString() || 'Cargando...'}
+          </span>
+          <button
+            onClick={handleManualRefresh}
+            className="text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 px-3 py-1 rounded transition"
+          >
+            🔄 Refrescar ahora
+          </button>
+        </div>
+        <span className="text-xs text-gray-500">
+          Auto-refresh cada 10s
+        </span>
+      </div>
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
         <div className="bg-gray-800/50 backdrop-blur rounded-xl p-6 border border-gray-700">
           <p className="text-gray-400 text-sm">Total Markets</p>
@@ -76,12 +158,14 @@ export default function Home() {
           </p>
         </div>
         <div className="bg-gray-800/50 backdrop-blur rounded-xl p-6 border border-gray-700">
-          <p className="text-gray-400 text-sm">Network</p>
-          <p className="text-2xl font-bold text-purple-400">Sepolia</p>
+          <p className="text-gray-400 text-sm">Settled</p>
+          <p className="text-3xl font-bold text-green-400">
+            {markets?.filter(m => m.status === "success" && m.result?.settled).length || 0}
+          </p>
         </div>
         <div className="bg-gray-800/50 backdrop-blur rounded-xl p-6 border border-gray-700">
-          <p className="text-gray-400 text-sm">Oracle</p>
-          <p className="text-2xl font-bold text-blue-400">CRE + AI</p>
+          <p className="text-gray-400 text-sm">Network</p>
+          <p className="text-2xl font-bold text-purple-400">Sepolia</p>
         </div>
       </div>
 
@@ -159,12 +243,12 @@ export default function Home() {
                     Market #{index}
                   </span>
                   {market.settled ? (
-                    <span className="text-xs bg-green-600/20 text-green-400 px-2 py-1 rounded">
+                    <span className="text-xs bg-green-600/20 text-green-400 px-2 py-1 rounded flex items-center gap-1">
                       ✓ Settled
                     </span>
                   ) : (
-                    <span className="text-xs bg-yellow-600/20 text-yellow-400 px-2 py-1 rounded">
-                      Active
+                    <span className="text-xs bg-yellow-600/20 text-yellow-400 px-2 py-1 rounded flex items-center gap-1">
+                      ● Active
                     </span>
                   )}
                 </div>

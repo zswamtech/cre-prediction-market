@@ -91,6 +91,31 @@ export const PREDICTION_MARKET_ABI = [
     inputs: [{ name: "marketId", type: "uint256" }],
     outputs: [],
   },
+  // Admin / Testing functions
+  {
+    name: "setForwarderAddress",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "forwarder", type: "address" }],
+    outputs: [],
+  },
+  {
+    name: "onReport",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "metadata", type: "bytes" },
+      { name: "report", type: "bytes" },
+    ],
+    outputs: [],
+  },
+  {
+    name: "owner",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
+  },
 ] as const;
 
 // V2 ABI - Includes dispute functions (for future V2 deployment)
@@ -165,3 +190,11 @@ export const PREDICTION_MARKET_V2_ABI = [
     ],
   },
 ] as const;
+
+/*
+export const PREDICTION_MARKET_SENDER_ABI = [
+  ... CCIP ABI removed for simplicity ...
+] as const;
+
+export const CHAIN_CONFIG... removed ...
+*/

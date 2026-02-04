@@ -65,6 +65,9 @@ interface GeminiResult {
 // ================================================================
 const EVENT_ABI = parseAbi([
   "event SettlementRequested(uint256 indexed marketId, string question)",
+  "event MarketCreated(uint256 indexed marketId, string question, address creator)",
+  "event PredictionMade(uint256 indexed marketId, address indexed predictor, uint8 prediction, uint256 amount)",
+  "event MarketSettled(uint256 indexed marketId, uint8 outcome, uint16 confidence)"
 ]);
 
 const GET_MARKET_ABI = [
@@ -115,6 +118,16 @@ export function onLogTrigger(runtime: Runtime<Config>, log: EVMLog): string {
     const data = bytesToHex(log.data);
 
     const decodedLog = decodeEventLog({ abi: EVENT_ABI, data, topics });
+    
+    // Check if it's the correct event
+    if (decodedLog.eventName !== "SettlementRequested") {
+      runtime.log(`[ERROR] Incorrect Event Detected: ${decodedLog.eventName}`);
+      if (decodedLog.eventName === "MarketCreated") {
+        throw new Error("You provided the Market Creation TX. Please request settlement in the UI and use THAT transaction hash.");
+      }
+      throw new Error(`Expected SettlementRequested, got ${decodedLog.eventName}`);
+    }
+
     const marketId = decodedLog.args.marketId as bigint;
     const question = decodedLog.args.question as string;
 

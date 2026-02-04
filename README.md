@@ -1,23 +1,11 @@
 # 🔮 CRE AI Prediction Market
 
-> **Decentralized prediction markets with AI-powered settlement and automated price oracles using Chainlink Runtime Environment (CRE)**
+> **Decentralized prediction markets with AI-powered settlement using Chainlink Runtime Environment (CRE)**
 
 [![Chainlink](https://img.shields.io/badge/Chainlink-CRE-375BD2?style=flat&logo=chainlink)](https://docs.chain.link/cre)
 [![Solidity](https://img.shields.io/badge/Solidity-0.8.24-363636?style=flat&logo=solidity)](https://soliditylang.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?style=flat&logo=typescript)](https://www.typescriptlang.org/)
 [![Network](https://img.shields.io/badge/Network-Sepolia-7B3FE4?style=flat&logo=ethereum)](https://sepolia.etherscan.io/)
-[![Chainlink Price Feeds](https://img.shields.io/badge/Prices-Chainlink-375BD2?style=flat&logo=chainlink)](https://data.chain.link/)
-
----
-
-## 🆕 What's New (v2.2)
-
-- ⚖️ **Dispute Resolution System** - Challenge AI verdicts with stake-based disputes (NEW!)
-- 🔗 **Chainlink Price Feeds** - On-chain verified prices for BTC/ETH with 100% confidence
-- ✨ **Cron Trigger Auto-Settlement** - Price markets settle automatically every hour
-- 🦎 **CoinGecko Fallback** - For assets not on Chainlink (SOL, etc.)
-- 🧠 **Improved AI Prompts** - Better question classification and confidence scoring
-- 📊 **Quad System** - AI + Chainlink + CoinGecko + Disputes
 
 ---
 
@@ -27,10 +15,7 @@ This project demonstrates a **fully decentralized prediction market** where:
 
 1. **Users create markets** with yes/no questions (e.g., "Will Bitcoin exceed $100k in 2026?")
 2. **Participants stake ETH** on their predictions
-3. **Settlement happens automatically:**
-   - 🤖 **AI-powered** (Gemini) for complex questions
-   - 🔗 **Chainlink Price Feeds** (on-chain verified) for BTC/ETH
-   - 🦎 **CoinGecko** (fallback) for other crypto assets
+3. **AI determines the outcome** using Google Gemini
 4. **CRE ensures trustless settlement** through decentralized consensus
 5. **Winners claim rewards** automatically
 
@@ -44,7 +29,7 @@ Traditional prediction markets rely on centralized oracles that can be manipulat
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         ARCHITECTURE (v2.2)                                 │
+│                         ARCHITECTURE                                        │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │   [User]                                                                    │
@@ -52,39 +37,29 @@ Traditional prediction markets rely on centralized oracles that can be manipulat
 │      ▼                                                                      │
 │   [Smart Contract] ──── requestSettlement() ────▶ [SettlementRequested]    │
 │                                                          │                  │
-│                    ┌─────────────────────────────────────┤                  │
-│                    │                                     │                  │
-│                    ▼                                     ▼                  │
-│           [CRE Cron Trigger]                   [CRE Log Trigger]           │
-│           (Every hour)                         (On-demand)                  │
-│                    │                                     │                  │
-│                    ▼                                     ▼                  │
-│           [Workflow DON]                        [Workflow DON]              │
-│                    │                                     │                  │
-│          ┌────────┴────────┐               ┌────────────┴────────┐         │
-│          ▼                 ▼               ▼                     ▼         │
-│    [EVM Read]      [Chainlink Feeds]  [EVM Read]           [Gemini AI]     │
-│    (Markets)       (BTC/ETH on-chain) (Market Data)        (Outcome)       │
-│          │                 │               │                     │         │
-│          │          [CoinGecko]            │                     │         │
-│          │          (SOL fallback)         │                     │         │
-│          └────────┬────────┘               └──────────┬──────────┘         │
-│                   ▼                                   ▼                    │
-│            [Price Check]                        [AI Response]              │
-│            (100% confidence)                   (YES/NO + confidence)       │
-│                   │                                   │                    │
-│                   └───────────────┬───────────────────┘                    │
-│                                   ▼                                        │
-│                            [BFT Consensus]                                 │
-│                                   │                                        │
-│                                   ▼                                        │
-│                            [EVM Write]                                     │
-│                            (Settlement)                                    │
-│                                   │                                        │
-│                                   ▼                                        │
-│   [Smart Contract] ◀──── onReport() ◀──── [Verified Result]               │
-│                                                                            │
-└────────────────────────────────────────────────────────────────────────────┘
+│                                                          ▼                  │
+│                                               [CRE Log Trigger]             │
+│                                                          │                  │
+│                                                          ▼                  │
+│                                               [Workflow DON]                │
+│                                                    │    │                   │
+│                                          ┌────────┘    └────────┐           │
+│                                          ▼                      ▼           │
+│                                   [EVM Read]              [Gemini AI]       │
+│                                   (Market Data)           (Outcome)         │
+│                                          │                      │           │
+│                                          └──────────┬───────────┘           │
+│                                                     ▼                       │
+│                                              [Consensus]                    │
+│                                                     │                       │
+│                                                     ▼                       │
+│                                              [EVM Write]                    │
+│                                              (Settlement)                   │
+│                                                     │                       │
+│                                                     ▼                       │
+│   [Smart Contract] ◀──── onReport() ◀──── [Verified Result]                │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -131,40 +106,27 @@ GEMINI_API_KEY_VAR=your_gemini_api_key_here
 
 ### Run Simulation
 
-**Option 1: AI Settlement (Log Trigger)**
 ```bash
-cre workflow simulate market-workflow --trigger-index 1 \
-  --evm-tx-hash <SETTLEMENT_REQUEST_TX_HASH> \
-  --evm-event-index 0 --non-interactive --broadcast
+cre workflow simulate market-workflow --broadcast
 ```
 
-**Option 2: Auto-Settlement (Cron Trigger)** 🆕
-```bash
-cre workflow simulate market-workflow --trigger-index 2 --non-interactive --broadcast
-```
-
-| Trigger Index | Type | Description |
-|---------------|------|-------------|
-| 0 | HTTP | Create markets via API |
-| 1 | Log (EVM) | AI-powered settlement (Gemini) |
-| 2 | Cron | Auto-settlement for price markets |
+Select trigger **2** (Log Trigger) and provide a transaction hash with a `SettlementRequested` event.
 
 ---
 
 ## 📁 Project Structure
 
 ```
-cre-prediction-market/
+prediction-market/
 ├── contracts/                 # Solidity smart contracts (Foundry)
 │   └── src/
 │       ├── PredictionMarket.sol    # Main prediction market contract
 │       └── interfaces/
 │           └── ReceiverTemplate.sol # CRE receiver interface
 ├── market-workflow/           # CRE workflow (TypeScript)
-│   ├── main.ts               # Workflow entry point (3 triggers)
+│   ├── main.ts               # Workflow entry point
 │   ├── httpCallback.ts       # HTTP trigger handler (create markets)
-│   ├── logCallback.ts        # Log trigger handler (AI settlement)
-│   ├── cronCallback.ts       # 🆕 Cron trigger handler (auto-settlement)
+│   ├── logCallback.ts        # Log trigger handler (settlement)
 │   ├── gemini.ts             # Gemini AI integration
 │   ├── config.staging.json   # Staging configuration
 │   └── workflow.yaml         # Workflow settings
@@ -172,6 +134,7 @@ cre-prediction-market/
 │   └── CRE_UNDERSTANDING.md  # CRE concepts explained
 ├── project.yaml              # CRE project settings
 ├── secrets.yaml              # Secret mappings (API keys)
+├── .env.example              # Environment template
 └── README.md                 # This file
 ```
 
@@ -196,55 +159,24 @@ cre-prediction-market/
 | **Confidence** | 100% |
 | **Status** | ✅ Settled on-chain |
 
-### Simulation Output (AI Settlement)
+### Simulation Output
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CRE Workflow: Log Trigger - Settle Market
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[Step 1] Settlement requested for Market #13
-[Step 1] Question: "Superará Ethereum los $10,000 USD antes del 31 de enero de 2026?"
+[Step 1] Settlement requested for Market #0
+[Step 1] Question: "Will Bitcoin exceed 100k USD in 2026?"
 [Step 2] Reading market details from contract...
+[Step 2] Market creator: 0x7f21851D163C3477E7527c6669580E15129A4833
 [Step 2] Already settled: false
+[Step 2] Yes Pool: 1000000000000000
+[Step 2] No Pool: 0
 [Step 3] Querying Gemini AI...
 [Gemini] Response received: {"result":"NO","confidence":10000}
 [Step 3] AI Result: NO
 [Step 3] AI Confidence: 100%
-[Step 4] ✓ Settlement successful: 0x1de1e0b15fcbf480dd6d405fd74da3a399ffda81d0fb16b24cdeeaf92ce65960
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
-
----
-
-## 🆕 Demo: Auto-Settlement with Cron Trigger
-
-| Field | Value |
-|-------|-------|
-| **Transaction** | [`0xd3c6cbbe43f29a5bd16122cbe0a0f633c7cb53e11dba1c1eb07f79852d44be03`](https://sepolia.etherscan.io/tx/0xd3c6cbbe43f29a5bd16122cbe0a0f633c7cb53e11dba1c1eb07f79852d44be03) |
-| **Market Question** | "¿Superará Bitcoin los $90,000 USD?" |
-| **Price Source** | CoinGecko API (BTC: $85,096) |
-| **Result** | NO (Price < Target) |
-| **Confidence** | 90% |
-| **Status** | ✅ Auto-settled on-chain |
-
-### Simulation Output (Auto-Settlement)
-
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CRE Workflow: Cron Trigger - Auto Settlement Check
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[Step 1] Fetching total market count...
-[Step 1] Total markets: 15
-[Step 2] Scanning for unsettled price-based markets...
-[Step 2] Market #14: "Superará Bitcoin los $90,000 USD?..."
-[Step 2] → Parsed: BTC > $90000
-[Step 2] Found 1 markets to check
-[Step 3] Fetching current prices from CoinGecko...
-[Step 3] BTC: $85096
-[Step 4] Evaluating conditions and settling markets...
-[Step 4] Market #14: BTC ($85096) > $90000
-[Step 4] → Result: NO (confidence: 90%)
-[Step 4] ✓ Market #14 settled: 0xd3c6cbbe43f29a5bd16122cbe0a0f633c7cb53e11dba1c1eb07f79852d44be03
+[Step 4] ✓ Settlement successful: 0x448ce0186c8ef757d05e4de8354bf312b2daf57501bed48accd6a2a9b4eb2a72
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
@@ -306,91 +238,13 @@ Winners call `claim(marketId)` to receive their proportional share of the pool.
 
 ## 📊 CRE Capabilities Used
 
-| Capability | Purpose | Trigger |
-|------------|---------|---------|
-| **Log Trigger** | Detect `SettlementRequested` events on-chain | AI Settlement |
-| **Cron Trigger** | 🆕 Run auto-settlement every hour | Price Settlement |
-| **EVM Read** | Read market data from smart contract | Both |
-| **HTTP Client** | Query Gemini AI / CoinGecko API | Both |
-| **Consensus** | Ensure all nodes agree on response | Both |
-| **EVM Write** | Write verified settlement to blockchain | Both |
-
-### Settlement Methods Comparison
-
-| Method | Trigger | Data Source | Confidence | Best For |
-|--------|---------|-------------|------------|----------|
-| **AI Settlement** | Log (on-demand) | Gemini AI + Google Search | 30-100% | Complex questions, events, sports |
-| **Chainlink Prices** | Cron (hourly) | On-chain Price Feeds | 100% | BTC/ETH price targets |
-| **CoinGecko Fallback** | Cron (hourly) | CoinGecko API | 80-95% | SOL and other crypto |
-| **Dispute Resolution** | Log (on-demand) | Gemini AI (re-evaluation) | Variable | Challenging AI verdicts |
-
----
-
-## ⚖️ Dispute Resolution System
-
-When AI settlements have low confidence (<90%), participants can challenge the verdict.
-
-### How It Works
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    DISPUTE FLOW                                 │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│   [Market Settled with <90% confidence]                         │
-│                    │                                            │
-│                    ▼                                            │
-│   ┌─────────────────────────────────────┐                       │
-│   │   24-HOUR DISPUTE WINDOW            │                       │
-│   │                                     │                       │
-│   │   Participant calls openDispute()   │                       │
-│   │   + Stakes 0.01 ETH minimum         │                       │
-│   │   + Provides dispute reason         │                       │
-│   └─────────────────────────────────────┘                       │
-│                    │                                            │
-│                    ▼                                            │
-│   [DisputeOpened Event] ─────▶ [CRE Log Trigger]                │
-│                                       │                         │
-│                                       ▼                         │
-│                               [Gemini AI v2]                    │
-│                               (Re-evaluation with               │
-│                                dispute context)                 │
-│                                       │                         │
-│                    ┌──────────────────┴──────────────────┐      │
-│                    ▼                                     ▼      │
-│            [DISPUTE VALID]                     [DISPUTE INVALID]│
-│                    │                                     │      │
-│                    ▼                                     ▼      │
-│           • Outcome reversed               • Outcome maintained │
-│           • Stake returned + 10%           • Stake → winners    │
-│           • New claims enabled             • Claims continue    │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Dispute Rules
-
-| Rule | Value |
-|------|-------|
-| Dispute Window | 24 hours after settlement |
-| Minimum Stake | 0.01 ETH |
-| Eligible Disputers | Market participants only |
-| Disputable Confidence | < 90% (controversial verdicts) |
-| Valid Dispute Reward | Stake + 10% bonus |
-| Invalid Dispute Penalty | Stake goes to winners |
-
-### Smart Contract Functions (PredictionMarketV2.sol)
-
-```solidity
-// Open a dispute
-function openDispute(uint256 marketId, string reason) external payable;
-
-// Check if market can be disputed
-function canDispute(uint256 marketId) external view returns (bool);
-
-// Check if claims are available
-function canClaim(uint256 marketId) external view returns (bool);
-```
+| Capability | Purpose |
+|------------|---------|
+| **Log Trigger** | Detect `SettlementRequested` events on-chain |
+| **EVM Read** | Read market data from smart contract |
+| **HTTP Client** | Query Gemini AI for outcome determination |
+| **Consensus** | Ensure all nodes agree on AI response |
+| **EVM Write** | Write verified settlement to blockchain |
 
 ---
 
@@ -409,11 +263,7 @@ This project is submitted for **Convergence: A Chainlink Hackathon**
 
 - ✅ CRE workflow as orchestration layer
 - ✅ Integrates blockchain with external AI (Gemini)
-- ✅ **Chainlink Price Feeds** for on-chain verified prices (BTC/ETH)
-- ✅ CoinGecko API as fallback for other assets
-- ✅ **Dispute Resolution System** for fair AI verdict challenges
-- ✅ Multiple trigger types (Log x2, Cron, HTTP)
-- ✅ Successful simulations demonstrated (AI + Auto-settlement)
+- ✅ Successful simulation demonstrated
 - ✅ Public source code with documentation
 
 ---

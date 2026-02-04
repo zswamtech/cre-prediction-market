@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: alojamientos-medellin-oracle
+    env: node
+    plan: free
+    region: oregon
+    runtime: node
+    nodeVersion: 20
+    # Use HTTPS repo URL for Render Blueprint
+    repo: https://github.com/zswamtech/alojamientos-medellin
+    buildCommand: ''
+    startCommand: node backend/scripts/server-oracle.js
+    autoDeploy: false
+    envVars:
+      # Render provides PORT automatically; server uses process.env.PORT
+      - key: ALLOW_ORIGIN
+        value: https://cre-prediction-market-git-main-andres-projects-de9e7b5f.vercel.app
+    healthCheckPath: /health
+    healthCheckTimeout: 10

@@ -20,6 +20,7 @@ import {
 // ================================================================
 type Config = {
   geminiModel: string;
+  oracleBaseUrl?: string;
   evms: Array<{
     marketAddress: string;
     chainSelectorName: string;
@@ -162,8 +163,22 @@ const buildGeminiRequest =
       const id = marketMatch[1];
       console.log(`[Oracle Debug] Detected Market ID: ${id}`);
       try {
-        // [FIX] Try specific LAN IP first (Reliable for Docker on Mac), then fallbacks
+        const envOracleBaseUrl =
+          typeof process !== "undefined" ? process.env.ORACLE_BASE_URL : undefined;
+        const oracleBaseUrl = config.oracleBaseUrl || envOracleBaseUrl;
+        const dynamicUrls: string[] = [];
+
+        if (oracleBaseUrl) {
+          const base = oracleBaseUrl.replace(/\/$/, "");
+          const baseWithPath = base.includes("/api/market")
+            ? base
+            : `${base}/api/market`;
+          dynamicUrls.push(`${baseWithPath.replace(/\/$/, "")}/${id}`);
+        }
+
+        // [FIX] Try configured base URL first, then LAN + local fallbacks
         const urlsToTry = [
+            ...dynamicUrls,
             `http://192.168.1.5:3001/api/market/${id}`,
             `http://host.docker.internal:3001/api/market/${id}`,
             `http://127.0.0.1:3001/api/market/${id}`

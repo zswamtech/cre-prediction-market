@@ -101,6 +101,7 @@ secretsNames:
 ```json
 {
   "geminiModel": "gemini-2.0-flash",
+  "oracleBaseUrl": "http://127.0.0.1:3001",
   "evms": [{
     "marketAddress": "0x33e7D49d945f3b20e4426440B5DdBB86269689EF",
     "chainSelectorName": "ethereum-testnet-sepolia",

@@ -1,203 +1,146 @@
-# 🔮 CRE AI Prediction Market
+#+ Convergencia Hackathon — CRE AI Prediction Market (Medellín QoL)
 
-> **Decentralized prediction markets with AI-powered settlement using Chainlink Runtime Environment (CRE)**
+> **1-line summary**: Mercados de predicción que liquidan automáticamente calidad de vida usando IA + CRE con datos urbanos verificables.
 
-[![Chainlink](https://img.shields.io/badge/Chainlink-CRE-375BD2?style=flat&logo=chainlink)](https://docs.chain.link/cre)
-[![Solidity](https://img.shields.io/badge/Solidity-0.8.24-363636?style=flat&logo=solidity)](https://soliditylang.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?style=flat&logo=typescript)](https://www.typescriptlang.org/)
-[![Network](https://img.shields.io/badge/Network-Sepolia-7B3FE4?style=flat&logo=ethereum)](https://sepolia.etherscan.io/)
+Tracks objetivo:
+- **Prediction Markets**
+- **CRE & AI**
+- **Risk & Compliance** (seguridad/ruido como señales de riesgo)
 
 ---
 
-## 🎯 Overview
+## Problema
+Medellín está viviendo fenómenos de gentrificación y cambios bruscos de calidad de vida en zonas residenciales. Los contratos de arriendo y operación necesitan señales verificables (ruido, seguridad, obras) para activar descuentos o cláusulas automáticamente.
 
-This project demonstrates a **fully decentralized prediction market** where:
+## Solución
+Un mercado de predicción que **liquida con IA** y **datos urbanos reales** (oracle IoT simulado). Chainlink CRE coordina la lectura on-chain, llamada a IA (Gemini), consenso y escritura en cadena, eliminando oráculos centralizados.
 
-1. **Users create markets** with yes/no questions (e.g., "Will Bitcoin exceed $100k in 2026?")
-2. **Participants stake ETH** on their predictions
-3. **AI determines the outcome** using Google Gemini
-4. **CRE ensures trustless settlement** through decentralized consensus
-5. **Winners claim rewards** automatically
+---
 
-### Why CRE?
-
-Traditional prediction markets rely on centralized oracles that can be manipulated. CRE solves this by:
-
-- Running the same AI query across **multiple independent nodes**
-- Requiring **BFT consensus** (2/3 agreement) before settlement
-- Making results **cryptographically verifiable** on-chain
+## Arquitectura (resumen)
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         ARCHITECTURE                                        │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│   [User]                                                                    │
-│      │                                                                      │
-│      ▼                                                                      │
-│   [Smart Contract] ──── requestSettlement() ────▶ [SettlementRequested]    │
-│                                                          │                  │
-│                                                          ▼                  │
-│                                               [CRE Log Trigger]             │
-│                                                          │                  │
-│                                                          ▼                  │
-│                                               [Workflow DON]                │
-│                                                    │    │                   │
-│                                          ┌────────┘    └────────┐           │
-│                                          ▼                      ▼           │
-│                                   [EVM Read]              [Gemini AI]       │
-│                                   (Market Data)           (Outcome)         │
-│                                          │                      │           │
-│                                          └──────────┬───────────┘           │
-│                                                     ▼                       │
-│                                              [Consensus]                    │
-│                                                     │                       │
-│                                                     ▼                       │
-│                                              [EVM Write]                    │
-│                                              (Settlement)                   │
-│                                                     │                       │
-│                                                     ▼                       │
-│   [Smart Contract] ◀──── onReport() ◀──── [Verified Result]                │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+[Frontend]  -> requestSettlement() -> [Contrato EVM]
+                                      |
+                                      v
+                              [CRE Log Trigger]
+                                      |
+                       +--------------+--------------+
+                       |                             |
+                 [EVM Read]                     [Gemini AI]
+                       |                             |
+                       +--------------+--------------+
+                                      v
+                                 [Consensus]
+                                      |
+                                      v
+                                [EVM Write]
+                                      |
+                                      v
+                                  [Settled]
+
+Oracle local (datos urbanos): /api/market/:id
 ```
 
 ---
 
-## 🚀 Quick Start
+## Repositorios
+- **Repo principal (este)**: https://github.com/zswamtech/cre-prediction-market
+- **Oracle urbano (datos Medellín)**: https://github.com/zswamtech/alojamientos-medellin
 
-### Prerequisites
+---
 
-- [Node.js](https://nodejs.org/) v18+ or [Bun](https://bun.sh/) v1.0+
-- [CRE CLI](https://docs.chain.link/cre/getting-started/installation) v1.0.6+
-- [Foundry](https://book.getfoundry.sh/getting-started/installation) (for contracts)
-- Google Gemini API key with [billing enabled](https://console.cloud.google.com/billing)
+## Demo local (modo hackathon)
 
-### Installation
-
+### 1) Oráculo local (datos urbanos)
 ```bash
-# Clone the repository
-git clone https://github.com/zswamtech/cre-prediction-market.git
-cd cre-prediction-market
-
-# Install workflow dependencies
-cd market-workflow
-bun install
-
-# Set up environment variables
-cp .env.example .env
-# Edit .env with your API keys
+cd /Users/andressoto/alojamientos-medellin
+ALLOW_ORIGIN=http://localhost:3000 PORT=3001 node backend/scripts/server-oracle.js
 ```
 
-### Configuration
+### 2) Frontend (modo demo)
+```bash
+cd /Users/andressoto/prediction-market/cre-prediction-market/frontend
+NEXT_PUBLIC_TEST_MODE=1 npm run build
+NEXT_PUBLIC_TEST_MODE=1 npm run start -- -p 3000
+```
 
-Create `.env` file in the project root:
+### 3) Mercado de demo
+Abrir en el navegador:
+```
+http://localhost:3000/market/28
+```
 
+> En modo `NEXT_PUBLIC_TEST_MODE=1` se muestra el botón de IA sin wallet para el demo.
+
+---
+
+## Simulación CRE (requisito principal)
+
+### Requisitos
+- CRE CLI instalado
+- Gemini API key con billing
+
+### Variables (root del repo)
 ```env
-# Ethereum private key (Sepolia testnet - without 0x prefix)
-CRE_ETH_PRIVATE_KEY=your_private_key_here
-
-# CRE target
+CRE_ETH_PRIVATE_KEY=...          # sin 0x
 CRE_TARGET=staging-settings
-
-# Gemini API Key (requires Google Cloud billing)
-GEMINI_API_KEY_VAR=your_gemini_api_key_here
+GEMINI_API_KEY_VAR=...
+# Opcional: oracle en cloud (Render) o local
+ORACLE_BASE_URL=http://127.0.0.1:3001
 ```
 
-### Run Simulation
-
+### Ejecutar
 ```bash
+cd /Users/andressoto/prediction-market/cre-prediction-market
 cre workflow simulate market-workflow --broadcast
 ```
-
-Select trigger **2** (Log Trigger) and provide a transaction hash with a `SettlementRequested` event.
+Selecciona:
+- Trigger `2` (Log Trigger)
+- TX Hash que emitió `SettlementRequested`
 
 ---
 
-## 📁 Project Structure
+## Test E2E (opcional, pero listo)
 
-```
-prediction-market/
-├── contracts/                 # Solidity smart contracts (Foundry)
-│   └── src/
-│       ├── PredictionMarket.sol    # Main prediction market contract
-│       └── interfaces/
-│           └── ReceiverTemplate.sol # CRE receiver interface
-├── market-workflow/           # CRE workflow (TypeScript)
-│   ├── main.ts               # Workflow entry point
-│   ├── httpCallback.ts       # HTTP trigger handler (create markets)
-│   ├── logCallback.ts        # Log trigger handler (settlement)
-│   ├── gemini.ts             # Gemini AI integration
-│   ├── config.staging.json   # Staging configuration
-│   └── workflow.yaml         # Workflow settings
-├── docs/                     # Documentation
-│   └── CRE_UNDERSTANDING.md  # CRE concepts explained
-├── project.yaml              # CRE project settings
-├── secrets.yaml              # Secret mappings (API keys)
-├── .env.example              # Environment template
-└── README.md                 # This file
+```bash
+cd /Users/andressoto/prediction-market/cre-prediction-market/frontend
+TEST_MARKET_ID=28 npm run test:e2e
 ```
 
 ---
 
-## 🔗 Deployed Contracts (Sepolia Testnet)
-
-| Contract | Address | Etherscan |
-|----------|---------|-----------|
-| PredictionMarket | `0x33e7D49d945f3b20e4426440B5DdBB86269689EF` | [View](https://sepolia.etherscan.io/address/0x33e7D49d945f3b20e4426440B5DdBB86269689EF) |
-| Keystone Forwarder | `0x15fC6ae953E024d975e77382eEeC56A9101f9F88` | [View](https://sepolia.etherscan.io/address/0x15fC6ae953E024d975e77382eEeC56A9101f9F88) |
-
----
-
-## 🧪 Demo: Successful Settlement
-
-| Field | Value |
-|-------|-------|
-| **Transaction** | [`0x448ce0186c8ef757d05e4de8354bf312b2daf57501bed48accd6a2a9b4eb2a72`](https://sepolia.etherscan.io/tx/0x448ce0186c8ef757d05e4de8354bf312b2daf57501bed48accd6a2a9b4eb2a72) |
-| **Market Question** | "Will Bitcoin exceed 100k USD in 2026?" |
-| **AI Result** | NO |
-| **Confidence** | 100% |
-| **Status** | ✅ Settled on-chain |
-
-### Simulation Output
-
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CRE Workflow: Log Trigger - Settle Market
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[Step 1] Settlement requested for Market #0
-[Step 1] Question: "Will Bitcoin exceed 100k USD in 2026?"
-[Step 2] Reading market details from contract...
-[Step 2] Market creator: 0x7f21851D163C3477E7527c6669580E15129A4833
-[Step 2] Already settled: false
-[Step 2] Yes Pool: 1000000000000000
-[Step 2] No Pool: 0
-[Step 3] Querying Gemini AI...
-[Gemini] Response received: {"result":"NO","confidence":10000}
-[Step 3] AI Result: NO
-[Step 3] AI Confidence: 100%
-[Step 4] ✓ Settlement successful: 0x448ce0186c8ef757d05e4de8354bf312b2daf57501bed48accd6a2a9b4eb2a72
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
+## Uso de Chainlink (links requeridos por hackathon)
+- `market-workflow/main.ts` — triggers CRE
+- `market-workflow/logCallback.ts` — lectura EVM + settlement
+- `market-workflow/gemini.ts` — llamada Gemini AI + datos del oracle
+- `market-workflow/workflow.yaml` — workflow CRE
+- `project.yaml` — config CRE
+- `secrets.yaml` — mapeo de secrets
+- `contracts/src/PredictionMarket.sol` — contrato principal
 
 ---
 
-## 🛠️ How It Works
+## Video demo (3–5 min)
+**Link**: _(pendiente)_
 
-### 1. Market Creation
+Guion sugerido:
+1. Problema (gentrificación + calidad de vida)
+2. Oráculo local con datos urbanos
+3. Mercado #28 en frontend
+4. Solicitar liquidación IA → TX Hash
+5. Simulación CRE CLI
 
-Users call `createMarket(question)` on the smart contract:
+---
 
-```solidity
-function createMarket(string memory question) public returns (uint256 marketId)
-```
+## Seguridad
+- No subir `.env` ni llaves privadas.
+- Usar `.env.example` para plantillas.
 
-### 2. Making Predictions
+---
 
-Participants stake ETH on YES or NO:
-
-```solidity
-function predict(uint256 marketId, Prediction prediction) external payable
+## Contacto
+Equipo: Individual (Andrés Soto)
 ```
 
 ### 3. Settlement Request

@@ -59,14 +59,20 @@ When a policy is ready to be settled, a Chainlink CRE workflow reads the policy 
 
 Paste any of these links in the form (they show CRE orchestration clearly):
 
-- CRE handlers/triggers: `market-workflow/main.ts`
-- Manual settlement + observation window: `market-workflow/httpCallback.ts`
-- Oracle + weather + Gemini integration: `market-workflow/gemini.ts`
-- CRE targets/RPCs: `project.yaml`
-- Secret mapping: `secrets.yaml`
-- Smart contract: `contracts/src/PredictionMarket.sol`
+- CRE handlers/triggers: `market-workflow/main.ts`  
+  `https://github.com/zswamtech/cre-prediction-market/blob/main/market-workflow/main.ts#L45`
+- Manual settlement + observation window: `market-workflow/httpCallback.ts`  
+  `https://github.com/zswamtech/cre-prediction-market/blob/main/market-workflow/httpCallback.ts#L120`
+- Oracle + weather + Gemini integration: `market-workflow/gemini.ts`  
+  `https://github.com/zswamtech/cre-prediction-market/blob/main/market-workflow/gemini.ts#L150`
+- CRE targets/RPCs: `project.yaml`  
+  `https://github.com/zswamtech/cre-prediction-market/blob/main/project.yaml`
+- Secret mapping: `secrets.yaml`  
+  `https://github.com/zswamtech/cre-prediction-market/blob/main/secrets.yaml`
+- Smart contract: `contracts/src/PredictionMarket.sol`  
+  `https://github.com/zswamtech/cre-prediction-market/blob/main/contracts/src/PredictionMarket.sol`
 
-After pushing, you can replace the items above with GitHub “blob” links (optionally with `#L` anchors).
+These links are ready to paste into the submission form.
 
 ---
 
@@ -91,4 +97,3 @@ Upload the final 3–5 min demo (unlisted is fine) and paste here:
 - Name: Andrés Soto
 - Email: ansoto1604@gmail.com
 - Team: Individual
-

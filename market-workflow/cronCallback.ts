@@ -36,6 +36,7 @@ import {
 // ================================================================
 type Config = {
   geminiModel: string;
+  minMarketAgeMinutes?: number;
   evms: Array<{
     marketAddress: string;
     chainSelectorName: string;
@@ -48,11 +49,11 @@ type Config = {
 // ================================================================
 interface Market {
   creator: `0x${string}`;
-  createdAt: number;
-  settledAt: number;
+  createdAt: number | bigint;
+  settledAt: number | bigint;
   settled: boolean;
-  confidence: number;
-  outcome: number;
+  confidence: number | bigint;
+  outcome: number | bigint;
   totalYesPool: bigint;
   totalNoPool: bigint;
   question: string;
@@ -441,6 +442,10 @@ export function onCronTrigger(runtime: Runtime<Config>): string {
   runtime.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
   try {
+    const minAgeMinutes = runtime.config.minMarketAgeMinutes ?? 0;
+    const minAgeSeconds = Math.ceil(minAgeMinutes * 60);
+    const nowSeconds = Math.floor(Date.now() / 1000);
+
     const evmConfig = runtime.config.evms[0];
     const network = getNetwork({
       chainFamily: "evm",
@@ -526,6 +531,24 @@ export function onCronTrigger(runtime: Runtime<Config>): string {
 
       // Skip settled markets
       if (market.settled) continue;
+
+      // Guard: don't settle before a minimum age (observation period)
+      if (minAgeSeconds > 0) {
+        const createdAtSeconds =
+          typeof market.createdAt === "bigint"
+            ? Number(market.createdAt)
+            : market.createdAt;
+        if (createdAtSeconds > 0) {
+          const ageSeconds = nowSeconds - createdAtSeconds;
+          if (ageSeconds < minAgeSeconds) {
+            const waitSeconds = Math.max(0, minAgeSeconds - ageSeconds);
+            runtime.log(
+              `[Step 2] Market #${i} too new (${ageSeconds}s). Waiting ${waitSeconds}s before eligibility.`
+            );
+            continue;
+          }
+        }
+      }
 
       // Try to parse price condition from question
       const condition = parsePriceCondition(market.question);

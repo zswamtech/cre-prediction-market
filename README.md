@@ -1,235 +1,208 @@
-#+ Convergencia Hackathon — CRE AI Prediction Market (Medellín QoL)
+# 🏠 FairLease — Parametric Rental Insurance (Chainlink CRE + AI)
 
-> **1-line summary**: Mercados de predicción que liquidan automáticamente calidad de vida usando IA + CRE con datos urbanos verificables.
+> **Underwriting pools + automatic payouts when “Quality of Life” breaches are proven by real‑world data.**
 
-Tracks objetivo:
-- **Prediction Markets**
-- **CRE & AI**
-- **Risk & Compliance** (seguridad/ruido como señales de riesgo)
+This repo is built for **Convergence (Chainlink Hackathon 2026)**.
+
+FairLease reframes “prediction markets” as **parametric insurance policies**:
+
+- **YES = Claim approved (payout is activated)**
+- **NO = No claim**
+
+Policies are settled by a **Chainlink CRE workflow** that orchestrates:
+
+- On-chain reads/writes (Sepolia)
+- A real-world **IoT / urban metrics oracle** (noise, safety, construction)
+- A real-world **Weather API** (Open‑Meteo)
+- **Gemini** (AI verdict) with verifiable CRE execution
 
 ---
 
-## Problema
-Medellín está viviendo fenómenos de gentrificación y cambios bruscos de calidad de vida en zonas residenciales. Los contratos de arriendo y operación necesitan señales verificables (ruido, seguridad, obras) para activar descuentos o cláusulas automáticamente.
+## 💡 The real-world problem
 
-## Solución
-Un mercado de predicción que **liquida con IA** y **datos urbanos reales** (oracle IoT simulado). Chainlink CRE coordina la lectura on-chain, llamada a IA (Gemini), consenso y escritura en cadena, eliminando oráculos centralizados.
+In rentals and leases, disputes are common:
+
+- Noise (parties, street, construction)
+- Safety issues
+- Unexpected disruptions (construction works, extreme weather)
+
+Today, refunds/discounts are often **manual, slow, and subjective**.
+
+FairLease turns this into a verifiable parametric policy:
+
+> “If X conditions happen during the coverage window, a payout is automatically triggered.”
 
 ---
 
-## Arquitectura (resumen)
+## ✅ What we built (MVP)
 
+- A **policy/market smart contract** (Sepolia) with pools:
+  - Pool **YES (payout)** funds claims
+  - Pool **NO (no-claim)** funds the opposite side
+- A **Next.js frontend** to create policies, fund pools, request settlement, and claim winnings
+- A **Chainlink CRE workflow** to settle policies:
+  1. Reads policy metadata from the contract
+  2. Pulls “official” metrics from the oracle service (IoT)
+  3. Pulls “official” weather from Open‑Meteo
+  4. Queries Gemini and enforces strict JSON output (`YES/NO + confidence`)
+  5. Writes the settlement report on-chain so winners can claim
+- A simple **observation period rule** (no contract changes):
+  - the workflow refuses to settle if the policy was created too recently
+
+---
+
+## 🔗 Contracts (Sepolia)
+
+| Contract | Address |
+|---|---|
+| `PredictionMarket` | `0x33e7D49d945f3b20e4426440B5DdBB86269689EF` |
+| `KeystoneForwarder` | `0x15fC6ae953E024d975e77382eEeC56A9101f9F88` |
+
+---
+
+## 🧪 Demo scenarios (guaranteed YES and guaranteed NO)
+
+The included oracle mock (`docs/integration/server-oracle.js`) is deterministic:
+
+- **Property ID 1 (expected YES / payout)**  
+  `noiseLevelDb = 85` and `nearbyConstruction = true` → breach
+- **Property ID 2 (expected NO / no-claim)**  
+  `noiseLevelDb = 45` and `nearbyConstruction = false` → no breach
+
+Create **two** policies with the same text, changing only the Property ID:
+
+- **Policy A (YES)**:  
+  `¿Se activó el payout durante la última hora por incumplimiento de calidad de vida en la Propiedad ID 1 (ruido >70 dB, seguridad <5, obras, o clima severo)?`
+- **Policy B (NO)**:  
+  `¿Se activó el payout durante la última hora por incumplimiento de calidad de vida en la Propiedad ID 2 (ruido >70 dB, seguridad <5, obras, o clima severo)?`
+
+---
+
+## 🧱 Architecture (high-level)
+
+```text
+User (Frontend) ──▶ Sepolia Contract ──▶ “Request AI Settlement” (on-chain)
+                            │
+                            ▼
+                 Chainlink CRE Workflow (TypeScript → WASM)
+                            │
+        ┌───────────────────┼────────────────────┐
+        ▼                   ▼                    ▼
+   IoT Oracle (Node)    Open‑Meteo API       Gemini (LLM)
+        │                   │                    │
+        └───────────────────┴────────────────────┘
+                            ▼
+                  CRE consensus + EVM writeReport
+                            ▼
+                  Contract settled (YES/NO + confidence)
+                            ▼
+                   Users claim winnings (payout)
 ```
-[Frontend]  -> requestSettlement() -> [Contrato EVM]
-                                      |
-                                      v
-                              [CRE Log Trigger]
-                                      |
-                       +--------------+--------------+
-                       |                             |
-                 [EVM Read]                     [Gemini AI]
-                       |                             |
-                       +--------------+--------------+
-                                      v
-                                 [Consensus]
-                                      |
-                                      v
-                                [EVM Write]
-                                      |
-                                      v
-                                  [Settled]
-
-Oracle local (datos urbanos): /api/market/:id
-```
 
 ---
 
-## Repositorios
-- **Repo principal (este)**: https://github.com/zswamtech/cre-prediction-market
-- **Oracle urbano (datos Medellín)**: https://github.com/zswamtech/alojamientos-medellin
+## 🚀 Local demo (recommended for the hackathon video)
 
----
+### Prerequisites
 
-## Demo local (modo hackathon)
+- Node.js 20+
+- Bun (for CRE compilation)
+- CRE CLI (`cre version` should work)
+- A funded Sepolia wallet
+- Gemini API key (billing enabled)
 
-### 1) Oráculo local (datos urbanos)
+### 0) Install dependencies
+
 ```bash
-cd /Users/andressoto/alojamientos-medellin
-ALLOW_ORIGIN=http://localhost:3000 PORT=3001 node backend/scripts/server-oracle.js
+cd frontend
+npm install
+
+cd ../market-workflow
+npm install
 ```
 
-### 2) Frontend (modo demo)
-```bash
-cd /Users/andressoto/prediction-market/cre-prediction-market/frontend
-NEXT_PUBLIC_TEST_MODE=1 npm run build
-NEXT_PUBLIC_TEST_MODE=1 npm run start -- -p 3000
-```
-
-### 3) Mercado de demo
-Abrir en el navegador:
-```
-http://localhost:3000/market/28
-```
-
-> En modo `NEXT_PUBLIC_TEST_MODE=1` se muestra el botón de IA sin wallet para el demo.
-
----
-
-## Simulación CRE (requisito principal)
-
-### Requisitos
-- CRE CLI instalado
-- Gemini API key con billing
-
-### Variables (root del repo)
-```env
-CRE_ETH_PRIVATE_KEY=...          # sin 0x
-CRE_TARGET=staging-settings
-GEMINI_API_KEY_VAR=...
-# Opcional: oracle en cloud (Render) o local
-ORACLE_BASE_URL=http://127.0.0.1:3001
-```
-
-### Ejecutar
-```bash
-cd /Users/andressoto/prediction-market/cre-prediction-market
-cre workflow simulate market-workflow --broadcast
-```
-Selecciona:
-- Trigger `2` (Log Trigger)
-- TX Hash que emitió `SettlementRequested`
-
----
-
-## Test E2E (opcional, pero listo)
+### 1) Start the Oracle (real-world data source)
 
 ```bash
-cd /Users/andressoto/prediction-market/cre-prediction-market/frontend
-TEST_MARKET_ID=28 npm run test:e2e
+ALLOW_ORIGIN=http://localhost:3000 PORT=3001 node docs/integration/server-oracle.js
 ```
 
----
+### 2) Start the Frontend
 
-## Uso de Chainlink (links requeridos por hackathon)
-- `market-workflow/main.ts` — triggers CRE
-- `market-workflow/logCallback.ts` — lectura EVM + settlement
-- `market-workflow/gemini.ts` — llamada Gemini AI + datos del oracle
-- `market-workflow/workflow.yaml` — workflow CRE
-- `project.yaml` — config CRE
-- `secrets.yaml` — mapeo de secrets
-- `contracts/src/PredictionMarket.sol` — contrato principal
-
----
-
-## Video demo (3–5 min)
-**Link**: _(pendiente)_
-
-Guion sugerido:
-1. Problema (gentrificación + calidad de vida)
-2. Oráculo local con datos urbanos
-3. Mercado #28 en frontend
-4. Solicitar liquidación IA → TX Hash
-5. Simulación CRE CLI
-
----
-
-## Seguridad
-- No subir `.env` ni llaves privadas.
-- Usar `.env.example` para plantillas.
-
----
-
-## Contacto
-Equipo: Individual (Andrés Soto)
+```bash
+cd frontend
+NEXT_PUBLIC_ORACLE_BASE_URL=http://127.0.0.1:3001 npm run dev
 ```
 
-### 3. Settlement Request
+Open `http://localhost:3000` and create your policies.
 
-Anyone can request settlement by calling:
+### 3) Settle a policy with CRE (the “money shot”)
 
-```solidity
-function requestSettlement(uint256 marketId) external
+Copy the policy/market number (e.g. `#36`) and run:
+
+```bash
+export CRE_TARGET=staging-settings
+export ORACLE_BASE_URL=http://127.0.0.1:3001
+export CRE_ETH_PRIVATE_KEY=YOUR_PRIVATE_KEY_NO_0x
+export GEMINI_API_KEY_VAR=YOUR_GEMINI_KEY
+
+cre workflow simulate market-workflow \
+  --target staging-settings \
+  --broadcast \
+  --trigger-index 0 \
+  --http-payload '{"action":"settle","marketId":36}' \
+  --non-interactive
 ```
 
-This emits a `SettlementRequested` event that triggers the CRE workflow.
-
-### 4. AI-Powered Settlement (CRE Workflow)
-
-The workflow:
-1. **Detects** the `SettlementRequested` event (Log Trigger)
-2. **Reads** market details from the contract (EVM Read)
-3. **Queries** Gemini AI for the outcome (HTTP)
-4. **Verifies** consensus across CRE nodes
-5. **Writes** the settlement back to the contract (EVM Write)
-
-### 5. Claiming Winnings
-
-Winners call `claim(marketId)` to receive their proportional share of the pool.
+If everything is correct, the UI updates to **Resolved** and shows **Result: YES/NO**.
 
 ---
 
-## 🔐 Security Features
+## ⏳ Observation period (coverage window)
 
-| Feature | Description |
-|---------|-------------|
-| **Decentralized Consensus** | Multiple CRE nodes must agree on AI response |
-| **BFT Tolerance** | System works even if 1/3 of nodes are malicious |
-| **On-Chain Verification** | All settlements are verifiable on Ethereum |
-| **Keystone Forwarder** | Only authorized CRE reports can settle markets |
+We enforce a minimum policy age in the workflow:
 
----
+- Staging: `minMarketAgeMinutes` in `market-workflow/config.staging.json`
+- Production: `minMarketAgeMinutes` in `market-workflow/config.production.json`
 
-## 📊 CRE Capabilities Used
-
-| Capability | Purpose |
-|------------|---------|
-| **Log Trigger** | Detect `SettlementRequested` events on-chain |
-| **EVM Read** | Read market data from smart contract |
-| **HTTP Client** | Query Gemini AI for outcome determination |
-| **Consensus** | Ensure all nodes agree on AI response |
-| **EVM Write** | Write verified settlement to blockchain |
+If you try to settle too early, the workflow returns “Too early to settle”.
 
 ---
 
-## 🏆 Hackathon Submission
+## 🛡️ Safety notes (important for recording the demo)
 
-This project is submitted for **Convergence: A Chainlink Hackathon**
+- Do **NOT** record with `-v` or `--engine-logs` (can print headers / secrets).
+- Don’t commit `.env` files, private keys, or API keys.
+- If your terminal shows `quote>` you copied “smart quotes” (`’` / `”`).  
+  Re-run using plain ASCII quotes: `'` and `"` (examples above are safe).
 
-### Tracks
+---
 
-| Track | Prize | Fit |
-|-------|-------|-----|
-| **CRE & AI** | $20,000 | AI-powered oracle using Gemini |
-| **Prediction Markets** | $20,000 | Decentralized market settlement |
+## 🔗 Key files showing Chainlink usage
 
-### Requirements Met
+For the hackathon “Chainlink usage” requirement:
 
-- ✅ CRE workflow as orchestration layer
-- ✅ Integrates blockchain with external AI (Gemini)
-- ✅ Successful simulation demonstrated
-- ✅ Public source code with documentation
+- CRE workflow entry + handlers: `market-workflow/main.ts`
+- Manual settlement (HTTP) + observation window: `market-workflow/httpCallback.ts`
+- Event-driven settlement (EVM Log): `market-workflow/logCallback.ts`
+- AI + oracle + weather integration: `market-workflow/gemini.ts`
+- CRE workflow config: `market-workflow/workflow.yaml`
+- CRE project targets + RPCs: `project.yaml`
+- Secret mapping (no secrets stored): `secrets.yaml`
+- Smart contract: `contracts/src/PredictionMarket.sol`
+
+---
+
+## 🏆 Hackathon tracks (recommended)
+
+- **CRE & AI**: AI-in-the-loop decisioning + verifiable execution.
+- **Prediction Markets**: automated, verifiable resolution based on offchain signals.
+- **Risk & Compliance**: parametric insurance-like safeguards and automated payouts.
 
 ---
 
 ## 👤 Author
 
-**Andrés Soto**
+Andrés Soto — Colombia  
+GitHub: `@zswamtech`
 
-- 🌐 Location: Medellín, Colombia
-- 💼 GitHub: [@zswamtech](https://github.com/zswamtech)
-
----
-
-## 📜 License
-
-This project is licensed under the MIT License.
-
----
-
-## 🔗 Resources
-
-- [CRE Documentation](https://docs.chain.link/cre)
-- [CRE Bootcamp GitBook](https://chainlink.gitbook.io/cre-bootcamp)
-- [Convergence Hackathon](https://hack.chain.link)
-- [Simulating Workflows](https://docs.chain.link/cre/guides/operations/simulating-workflows)
-- [Gemini API Documentation](https://ai.google.dev/gemini-api/docs)

@@ -33,6 +33,7 @@ import { askGemini } from "./gemini";
 // ================================================================
 type Config = {
   geminiModel: string;
+  minMarketAgeMinutes?: number;
   evms: Array<{
     marketAddress: string;
     chainSelectorName: string;
@@ -45,11 +46,11 @@ type Config = {
 // ================================================================
 interface Market {
   creator: `0x${string}`;
-  createdAt: number;
-  settledAt: number;
+  createdAt: number | bigint;
+  settledAt: number | bigint;
   settled: boolean;
-  confidence: number;
-  outcome: number; // 0 = Yes, 1 = No
+  confidence: number | bigint;
+  outcome: number | bigint; // 0 = Yes, 1 = No
   totalYesPool: bigint;
   totalNoPool: bigint;
   question: string;
@@ -185,11 +186,35 @@ export function onLogTrigger(runtime: Runtime<Config>, log: EVMLog): string {
     }
 
     // ─────────────────────────────────────────────────────────────
+    // Guard: Minimum "observation period" after creation
+    // ─────────────────────────────────────────────────────────────
+    const minAgeMinutes = runtime.config.minMarketAgeMinutes ?? 0;
+    const minAgeSeconds = Math.ceil(minAgeMinutes * 60);
+    const createdAtSeconds =
+      typeof market.createdAt === "bigint" ? Number(market.createdAt) : market.createdAt;
+
+    if (minAgeSeconds > 0 && createdAtSeconds > 0) {
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      const ageSeconds = nowSeconds - createdAtSeconds;
+      runtime.log(
+        `[Step 2] Market age: ${ageSeconds}s (min required: ${minAgeSeconds}s)`
+      );
+
+      if (ageSeconds < minAgeSeconds) {
+        const waitSeconds = Math.max(0, minAgeSeconds - ageSeconds);
+        runtime.log(
+          `[Step 2] Too early to settle. Try again in ${waitSeconds}s.`
+        );
+        return `Too early to settle. Wait ${waitSeconds}s.`;
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────
     // Step 3: Query AI (HTTP)
     // ─────────────────────────────────────────────────────────────
     runtime.log("[Step 3] Querying Gemini AI...");
 
-    const geminiResult = askGemini(runtime, question);
+    const geminiResult = askGemini(runtime, question, undefined, marketId.toString());
 
     // Extract JSON from response (AI may include prose before/after the JSON)
     const jsonMatch = geminiResult.geminiResponse.match(/\{[\s\S]*"result"[\s\S]*"confidence"[\s\S]*\}/);

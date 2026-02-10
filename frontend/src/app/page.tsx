@@ -109,10 +109,10 @@ export default function Home() {
       <header className="flex justify-between items-center mb-12">
         <div>
           <h1 className="text-4xl font-bold text-white mb-2">
-            🔮 CRE Prediction Market
+            🏠 FairLease — Seguro paramétrico (CRE)
           </h1>
           <p className="text-gray-400">
-            Decentralized markets with AI-powered settlement
+            Pool de garantías + liquidación automática con IA y datos reales
           </p>
         </div>
         <div className="flex gap-4 items-center">
@@ -121,7 +121,7 @@ export default function Home() {
               href="/create"
               className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-medium transition"
             >
-              + Create Market
+              + Crear póliza
             </Link>
           )}
           <ConnectKitButton />
@@ -138,71 +138,77 @@ export default function Home() {
             onClick={handleManualRefresh}
             className="text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 px-3 py-1 rounded transition"
           >
-            🔄 Refrescar ahora
+            🔄 Actualizar ahora
           </button>
         </div>
         <span className="text-xs text-gray-500">
-          Auto-refresh cada 10s
+          Actualización automática cada 10s
         </span>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
         <div className="bg-gray-800/50 backdrop-blur rounded-xl p-6 border border-gray-700">
-          <p className="text-gray-400 text-sm">Total Markets</p>
+          <p className="text-gray-400 text-sm">Pólizas totales</p>
           <p className="text-3xl font-bold text-white">{marketCount}</p>
         </div>
         <div className="bg-gray-800/50 backdrop-blur rounded-xl p-6 border border-gray-700">
-          <p className="text-gray-400 text-sm">Active</p>
+          <p className="text-gray-400 text-sm">Activas</p>
           <p className="text-3xl font-bold text-yellow-400">
             {markets?.filter(m => m.status === "success" && !m.result?.settled).length || 0}
           </p>
         </div>
         <div className="bg-gray-800/50 backdrop-blur rounded-xl p-6 border border-gray-700">
-          <p className="text-gray-400 text-sm">Settled</p>
+          <p className="text-gray-400 text-sm">Resueltas</p>
           <p className="text-3xl font-bold text-green-400">
             {markets?.filter(m => m.status === "success" && m.result?.settled).length || 0}
           </p>
         </div>
         <div className="bg-gray-800/50 backdrop-blur rounded-xl p-6 border border-gray-700">
-          <p className="text-gray-400 text-sm">Network</p>
+          <p className="text-gray-400 text-sm">Red</p>
           <p className="text-2xl font-bold text-purple-400">Sepolia</p>
         </div>
       </div>
 
-      {/* Settlement Methods Info */}
+      {/* Verification signals used by the CRE workflow */}
       <div className="bg-gradient-to-r from-purple-900/30 to-blue-900/30 rounded-xl p-6 border border-purple-700/50 mb-8">
-        <h3 className="text-lg font-semibold text-white mb-3">Settlement Methods</h3>
+        <h3 className="text-lg font-semibold text-white mb-3">
+          Orquestación CRE (cómo se verifica)
+        </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
           <div className="flex items-center gap-3">
             <span className="text-2xl">🤖</span>
             <div>
-              <p className="text-white font-medium">AI Settlement</p>
-              <p className="text-gray-400">Gemini AI + Google Search</p>
+              <p className="text-white font-medium">Veredicto IA</p>
+              <p className="text-gray-400">Gemini (SÍ/NO + confianza)</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-2xl">🔗</span>
+            <span className="text-2xl">🏠</span>
             <div>
-              <p className="text-white font-medium">Chainlink Prices</p>
-              <p className="text-gray-400">On-chain BTC/ETH feeds</p>
+              <p className="text-white font-medium">Oracle urbano</p>
+              <p className="text-gray-400">Ruido, seguridad, obras, transporte</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-2xl">⚖️</span>
+            <span className="text-2xl">🌦️</span>
             <div>
-              <p className="text-white font-medium">Dispute System</p>
-              <p className="text-gray-400">Challenge low-confidence results</p>
+              <p className="text-white font-medium">Clima</p>
+              <p className="text-gray-400">Open‑Meteo (precipitación / viento)</p>
             </div>
           </div>
         </div>
+        <p className="text-xs text-gray-500 mt-4">
+          Nota: En esta demo la póliza se modela como un contrato SÍ/NO con pools
+          (tipo prediction market). Roadmap: colateral en stablecoin + disputas (V2).
+        </p>
       </div>
 
-      <h2 className="text-2xl font-bold text-white mb-6">Markets</h2>
+      <h2 className="text-2xl font-bold text-white mb-6">Pólizas</h2>
 
       {error && (
         <div className="bg-red-900/50 border border-red-500 rounded-xl p-4 mb-6">
           <p className="text-red-400 text-sm">
-            Error loading markets: {error.message}
+            Error cargando pólizas: {error.message}
           </p>
         </div>
       )}
@@ -211,18 +217,18 @@ export default function Home() {
         <div className="bg-gray-800/50 backdrop-blur rounded-xl p-12 border border-gray-700 text-center">
           <div className="animate-pulse">
             <div className="h-4 bg-gray-700 rounded w-1/3 mx-auto mb-4"></div>
-            <p className="text-gray-400">Loading markets...</p>
+            <p className="text-gray-400">Cargando pólizas...</p>
           </div>
         </div>
       ) : marketCount === 0 ? (
         <div className="bg-gray-800/50 backdrop-blur rounded-xl p-12 border border-gray-700 text-center">
-          <p className="text-gray-400 text-lg">No markets yet.</p>
+          <p className="text-gray-400 text-lg">Aún no hay pólizas.</p>
           {isConnected && (
             <Link
               href="/create"
               className="inline-block mt-4 bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-medium transition"
             >
-              Create the first market
+              Crear la primera póliza
             </Link>
           )}
         </div>
@@ -240,15 +246,15 @@ export default function Home() {
               >
                 <div className="flex justify-between items-start mb-4">
                   <span className="text-xs bg-purple-600/20 text-purple-400 px-2 py-1 rounded">
-                    Market #{index}
+                    Póliza #{index}
                   </span>
                   {market.settled ? (
                     <span className="text-xs bg-green-600/20 text-green-400 px-2 py-1 rounded flex items-center gap-1">
-                      ✓ Settled
+                      ✓ Resuelta
                     </span>
                   ) : (
                     <span className="text-xs bg-yellow-600/20 text-yellow-400 px-2 py-1 rounded flex items-center gap-1">
-                      ● Active
+                      ● Activa
                     </span>
                   )}
                 </div>
@@ -259,13 +265,13 @@ export default function Home() {
 
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Yes Pool</span>
+                    <span className="text-gray-400">Pool SÍ (payout)</span>
                     <span className="text-green-400">
                       {formatEther(market.totalYesPool)} ETH
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">No Pool</span>
+                    <span className="text-gray-400">Pool NO (sin reclamo)</span>
                     <span className="text-red-400">
                       {formatEther(market.totalNoPool)} ETH
                     </span>
@@ -276,13 +282,13 @@ export default function Home() {
                   <div className="mt-4 pt-4 border-t border-gray-700">
                     <div className="flex justify-between items-center">
                       <p className="text-sm text-gray-400">
-                        Outcome:{" "}
+                        Resultado:{" "}
                         <span
                           className={
                             market.outcome === 0 ? "text-green-400" : "text-red-400"
                           }
                         >
-                          {market.outcome === 0 ? "YES" : "NO"}
+                          {market.outcome === 0 ? "SÍ (payout)" : "NO (sin reclamo)"}
                         </span>
                       </p>
                       {/* Confidence indicator */}
@@ -296,7 +302,7 @@ export default function Home() {
                         }`}
                       >
                         {market.confidence >= 10000
-                          ? "🔗 Verified"
+                          ? "🔗 Verificado"
                           : market.confidence >= DISPUTE_CONFIDENCE_THRESHOLD
                           ? `${market.confidence / 100}%`
                           : `⚠ ${market.confidence / 100}%`}

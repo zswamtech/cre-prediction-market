@@ -1,3 +1,18 @@
 {
+  "geminiModel": "gemini-2.0-flash",
+  "minMarketAgeMinutes": 60,
+  "oracleBaseUrl": "https://your-oracle-domain.onrender.com",
+  "weather": {
+    "latitude": 6.2442,
+    "longitude": -75.5812,
+    "timezone": "America/Bogota"
+  },
+  "evms": [
+    {
+      "marketAddress": "0x33e7D49d945f3b20e4426440B5DdBB86269689EF",
+      "chainSelectorName": "ethereum-testnet-sepolia",
+      "gasLimit": "500000"
+    }
+  ],
   "schedule": "*/30 * * * * *"
 }

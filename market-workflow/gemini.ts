@@ -21,6 +21,11 @@ import {
 type Config = {
   geminiModel: string;
   oracleBaseUrl?: string;
+  weather?: {
+    latitude: number;
+    longitude: number;
+    timezone?: string;
+  };
   evms: Array<{
     marketAddress: string;
     chainSelectorName: string;
@@ -59,6 +64,27 @@ export interface GeminiResponse {
   rawJsonString: string;
 }
 
+const bytesToBase64 = (bytes: Uint8Array): string => {
+  const base64Chars =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+  let output = "";
+  for (let i = 0; i < bytes.length; i += 3) {
+    const a = bytes[i] ?? 0;
+    const b = bytes[i + 1] ?? 0;
+    const c = bytes[i + 2] ?? 0;
+
+    const triple = (a << 16) | (b << 8) | c;
+
+    output += base64Chars[(triple >> 18) & 0x3f];
+    output += base64Chars[(triple >> 12) & 0x3f];
+    output += i + 1 < bytes.length ? base64Chars[(triple >> 6) & 0x3f] : "=";
+    output += i + 2 < bytes.length ? base64Chars[triple & 0x3f] : "=";
+  }
+
+  return output;
+};
+
 // ================================================================
 // |                    PROMPTS                                   |
 // ================================================================
@@ -70,14 +96,17 @@ CONDITIONS FOR BREACH (Result: "YES"):
 1. Noise Level > 70 dB (Unacceptable noise pollution)
 2. Safety Index < 5.0 (Unsafe environment)
 3. "nearbyConstruction" is TRUE (Disruptive works)
+4. Severe Weather Disruption:
+   - precipitation >= 5 mm (current hour) OR wind_speed_10m >= 30 km/h
 
-If ANY of these are true based on the OFFICIAL TRUSTED ORACLE DATA, output "YES" (The tenant deserves a discount/payout).
+If ANY of these are true based on the OFFICIAL TRUSTED ORACLE DATA and OFFICIAL WEATHER DATA, output "YES" (The tenant deserves a discount/payout).
 Otherwise, output "NO".
 
 PROCESS:
 1. Read the [OFFICIAL TRUSTED ORACLE DATA].
-2. Check against the thresholds.
-3. Output JSON verdict.
+2. Read the [OFFICIAL WEATHER DATA - OPEN METEO] (if present).
+3. Check against the thresholds.
+4. Output JSON verdict.
 
 CORRECT OUTPUT EXAMPLE:
 {"result":"YES","confidence":10000}
@@ -87,27 +116,6 @@ const USER_PROMPT = `Analyze the Urban Data and determine if Quality of Life was
 Output ONLY JSON: {"result":"YES/NO","confidence":0-10000}
 
 Question: `;
-
-// ... (Rest of code)
-
-// HACKATHON MODE: Logic update
-// ... inside buildGeminiRequest ...
-           if (json.success && json.data) {
-             oracleContext = `
----------------------------------------------------------
-[OFFICIAL URBAN SENSOR DATA - IOT NETWORK]
-Property: ${json.data.address}
-Metrics:
-- Noise Level: ${json.data.metrics.noiseLevelDb} dB
-- Safety Index: ${json.data.metrics.safetyIndex}/10
-- Construction Nearby: ${json.data.metrics.nearbyConstruction}
-- Transport: ${json.data.metrics.publicTransportStatus}
-
-INSTRUCTION: Trust these sensor readings absolutely.
----------------------------------------------------------
-`;
-           }
-// ...
 
 // ================================================================
 // |                    MAIN FUNCTION                             |
@@ -122,7 +130,8 @@ INSTRUCTION: Trust these sensor readings absolutely.
 export function askGemini(
   runtime: Runtime<Config>,
   question: string,
-  customSystemPrompt?: string
+  customSystemPrompt?: string,
+  oracleIdOverride?: string
 ): GeminiResponse {
   runtime.log("[Gemini] Querying AI for market outcome...");
   runtime.log(`[Gemini] Question: "${question}"`);
@@ -138,7 +147,7 @@ export function askGemini(
   const result = httpClient
     .sendRequest(
       runtime,
-      buildGeminiRequest(question, geminiApiKey.value, systemPrompt),
+      buildGeminiRequest(question, geminiApiKey.value, systemPrompt, oracleIdOverride),
       consensusIdenticalAggregation<GeminiResponse>()
     )(runtime.config)
     .result();
@@ -151,34 +160,42 @@ export function askGemini(
 // |                    REQUEST BUILDER                           |
 // ================================================================
 const buildGeminiRequest =
-  (question: string, apiKey: string, systemPrompt: string) =>
+  (question: string, apiKey: string, systemPrompt: string, oracleIdOverride?: string) =>
   (sendRequester: HTTPSendRequester, config: Config): GeminiResponse => {
     
     // [HACKATHON MODE] Integración con Oracle "FairLease" (Assets del mundo real)
     // Intentamos obtener datos oficiales del servidor local (alojamientos-medellin)
     let oracleContext = "";
-    // Buscamos patrones como "Market X", "ID: X", "ID X", "Propiedad X" en la pregunta
-    const marketMatch = question.match(/(?:market|id|propiedad)[:\s]*(\d+)/i);
-    if (marketMatch) {
-      const id = marketMatch[1];
-      console.log(`[Oracle Debug] Detected Market ID: ${id}`);
+    let oracleMetrics:
+      | {
+          noiseLevelDb?: number;
+          safetyIndex?: number;
+          nearbyConstruction?: boolean;
+          publicTransportStatus?: string;
+          address?: string;
+        }
+      | undefined;
+
+    // Prefer parsing from the question (e.g., "Propiedad ID 1") so the oracle
+    // matches what the user sees in the UI. Fall back to the override (e.g., onchain marketId).
+    const detectedFromQuestion =
+      question.match(/(?:market|id|propiedad)[:\s]*(\d+)/i)?.[1];
+    const detectedId = detectedFromQuestion ?? oracleIdOverride;
+
+    if (detectedId) {
+      const id = detectedId;
+      console.log(`[Oracle Debug] Using Oracle ID: ${id}`);
       try {
         const envOracleBaseUrl =
           typeof process !== "undefined" ? process.env.ORACLE_BASE_URL : undefined;
-        const oracleBaseUrl = config.oracleBaseUrl || envOracleBaseUrl;
-        const dynamicUrls: string[] = [];
+        const configuredBaseUrl = config.oracleBaseUrl || envOracleBaseUrl;
+        const normalizeBaseUrl = (url: string) => url.replace(/\/+$/, "");
 
-        if (oracleBaseUrl) {
-          const base = oracleBaseUrl.replace(/\/$/, "");
-          const baseWithPath = base.includes("/api/market")
-            ? base
-            : `${base}/api/market`;
-          dynamicUrls.push(`${baseWithPath.replace(/\/$/, "")}/${id}`);
-        }
-
-        // [FIX] Try configured base URL first, then LAN + local fallbacks
+        // [FIX] Try configured base URL first, then fallbacks (LAN/localhost)
         const urlsToTry = [
-            ...dynamicUrls,
+            ...(configuredBaseUrl
+              ? [`${normalizeBaseUrl(configuredBaseUrl)}/api/market/${id}`]
+              : []),
             `http://192.168.1.5:3001/api/market/${id}`,
             `http://host.docker.internal:3001/api/market/${id}`,
             `http://127.0.0.1:3001/api/market/${id}`
@@ -210,6 +227,14 @@ const buildGeminiRequest =
            console.log(`[Oracle Debug] Response: ${bodyStr}`);
            const json = JSON.parse(bodyStr);
            if (json.success && json.data) {
+             oracleMetrics = {
+               address: json.data.address,
+               noiseLevelDb: json.data.metrics?.noiseLevelDb,
+               safetyIndex: json.data.metrics?.safetyIndex,
+               nearbyConstruction: json.data.metrics?.nearbyConstruction,
+               publicTransportStatus: json.data.metrics?.publicTransportStatus,
+             };
+
              oracleContext = `
 ---------------------------------------------------------
 [OFFICIAL URBAN SENSOR DATA - IOT NETWORK]
@@ -235,6 +260,74 @@ INSTRUCTION: Trust these sensor readings absolutely.
         console.log("[Oracle Debug] No Market ID detected in question");
     }
 
+    // [HACKATHON MODE] External Weather API (real-world signal)
+    // Uses Open-Meteo (no API key) so the workflow integrates a real external data source.
+    let weatherContext = "";
+    let weatherMetrics:
+      | {
+          precipitationMm?: number;
+          windSpeedKmh?: number;
+          temperatureC?: number;
+          time?: string;
+        }
+      | undefined;
+    try {
+      const latitude = config.weather?.latitude ?? 6.2442; // Medellín default
+      const longitude = config.weather?.longitude ?? -75.5812;
+      const timezone = config.weather?.timezone ?? "America/Bogota";
+
+      const weatherUrl =
+        `https://api.open-meteo.com/v1/forecast` +
+        `?latitude=${encodeURIComponent(String(latitude))}` +
+        `&longitude=${encodeURIComponent(String(longitude))}` +
+        `&current=temperature_2m,precipitation,wind_speed_10m` +
+        `&timezone=${encodeURIComponent(timezone)}`;
+
+      const weatherReq = {
+        url: weatherUrl,
+        method: "GET" as const,
+        headers: { Accept: "application/json" },
+        // google.protobuf.Duration JSON format expects seconds like "900s"
+        cacheSettings: { store: true, maxAge: "900s" },
+      };
+
+      const weatherResp = sendRequester.sendRequest(weatherReq).result();
+      if (ok(weatherResp)) {
+        const bodyStr = new TextDecoder().decode(weatherResp.body);
+        const json = JSON.parse(bodyStr);
+        const current = json?.current;
+
+        if (current) {
+          weatherMetrics = {
+            time: current.time,
+            temperatureC: current.temperature_2m,
+            precipitationMm: current.precipitation,
+            windSpeedKmh: current.wind_speed_10m,
+          };
+
+          weatherContext = `
+---------------------------------------------------------
+[OFFICIAL WEATHER DATA - OPEN METEO]
+Location: ${latitude}, ${longitude}
+Time: ${current.time ?? "N/A"} (${timezone})
+- Temperature: ${current.temperature_2m ?? "N/A"} °C
+- Precipitation: ${current.precipitation ?? "N/A"} mm
+- Wind Speed: ${current.wind_speed_10m ?? "N/A"} km/h
+Source: ${weatherUrl}
+
+INSTRUCTION: Trust these weather readings absolutely.
+---------------------------------------------------------
+`;
+        }
+      } else {
+        console.log(
+          `[Weather Debug] Fetch failed: ${weatherResp.statusCode ?? "Error"}`
+        );
+      }
+    } catch (err) {
+      console.log(`[Weather Debug] Exception:`, err);
+    }
+
     // Estructura CON google_search para búsqueda en tiempo real
     const requestData: GeminiData = {
       system_instruction: {
@@ -242,7 +335,7 @@ INSTRUCTION: Trust these sensor readings absolutely.
       },
       contents: [
         {
-          parts: [{ text: USER_PROMPT + question + oracleContext }],
+          parts: [{ text: USER_PROMPT + question + oracleContext + weatherContext }],
         },
       ],
       // Habilitar Google Search para datos en tiempo real
@@ -255,7 +348,7 @@ INSTRUCTION: Trust these sensor readings absolutely.
 
     // Base64 encode the body
     const bodyBytes = new TextEncoder().encode(JSON.stringify(requestData));
-    const body = Buffer.from(bodyBytes).toString("base64");
+    const body = bytesToBase64(bodyBytes);
 
     const req = {
       url: `https://generativelanguage.googleapis.com/v1beta/models/${config.geminiModel}:generateContent`,
@@ -279,18 +372,32 @@ INSTRUCTION: Trust these sensor readings absolutely.
       // Si Gemini falla (ej. Quota 429) PERO tenemos datos del oráculo local,
       // usamos los datos del oráculo para generar una respuesta determinista y permitir probar el flujo.
       // If we rate-limit but we already have local oracle data, allow demo fallback
-      if (resp.statusCode === 429 && oracleContext.includes("OFFICIAL URBAN SENSOR DATA")) {
+      if (
+        resp.statusCode === 429 &&
+        (oracleMetrics || weatherMetrics || oracleContext.includes("OFFICIAL URBAN SENSOR DATA"))
+      ) {
           console.log("\n⚠️ [GEMINI 429 RATE LIMIT] -> FALLBACK TO LOCAL ORACLE DATA");
-          console.log("Using local data to determine successful outcome for testing.\n");
-          
-          // Lógica simple de Fallback para el demo:
-          // Si el ID es 1 (El Poblado, Occ: 85%), y preguntan si es < 50% -> Respuesta es NO.
-          // Si preguntan si es > 50% -> Respuesta es YES.
-          // Para el Demo, asumimos que la pregunta es la estándar: "¿Menor al 50%?"
-          
+          console.log("Using oracle/weather thresholds to settle deterministically.\n");
+
+          const noiseLevelDb = oracleMetrics?.noiseLevelDb;
+          const safetyIndex = oracleMetrics?.safetyIndex;
+          const nearbyConstruction = oracleMetrics?.nearbyConstruction;
+          const precipitationMm = weatherMetrics?.precipitationMm;
+          const windSpeedKmh = weatherMetrics?.windSpeedKmh;
+
+          const breached =
+            (typeof noiseLevelDb === "number" && noiseLevelDb > 70) ||
+            (typeof safetyIndex === "number" && safetyIndex < 5) ||
+            nearbyConstruction === true ||
+            (typeof precipitationMm === "number" && precipitationMm >= 5) ||
+            (typeof windSpeedKmh === "number" && windSpeedKmh >= 30);
+
           return {
             statusCode: 200,
-            geminiResponse: '{"result":"NO","confidence":10000}', // Forzamos respuesta correcta basada en datos
+            geminiResponse: JSON.stringify({
+              result: breached ? "YES" : "NO",
+              confidence: 10000,
+            }),
             responseId: "fallback-429-bypass",
             rawJsonString: '{"fallback": true}'
           };

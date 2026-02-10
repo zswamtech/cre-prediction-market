@@ -24,7 +24,13 @@ type EvmConfig = {
 
 type Config = {
   geminiModel: string;
+  oracleBaseUrl?: string;
+  // Minimum "observation period" after a market/policy is created before it can be settled.
+  // Implemented in the workflow (no contract changes).
+  minMarketAgeMinutes?: number;
   evms: EvmConfig[];
+  disableLogTriggers?: boolean;
+  disableCronTrigger?: boolean;
 };
 
 // ================================================================
@@ -41,58 +47,67 @@ const initWorkflow = (config: Config) => {
   const httpCapability = new cre.capabilities.HTTPCapability();
   const httpTrigger = httpCapability.trigger({});
 
-  // Day 2: Log Trigger for settlement
-  const network = getNetwork({
-    chainFamily: "evm",
-    chainSelectorName: config.evms[0].chainSelectorName,
-    isTestnet: true,
-  });
-
-  if (!network) {
-    throw new Error(`Network not found: ${config.evms[0].chainSelectorName}`);
-  }
-
-  const evmClient = new cre.capabilities.EVMClient(network.chainSelector.selector);
-  const settlementEventHash = keccak256(toHex(SETTLEMENT_REQUESTED_SIGNATURE));
-  const disputeEventHash = keccak256(toHex(DISPUTE_OPENED_SIGNATURE));
-
-  // Day 3: Cron Trigger for Auto-Settlement (NEW!)
-  const cronCapability = new cre.capabilities.CronCapability();
-
-  return [
+  const handlers = [
     // Day 1: HTTP Trigger - Market Creation
     cre.handler(httpTrigger, onHttpTrigger),
+  ];
+
+  // Day 2: Log Trigger for settlement
+  if (!config.disableLogTriggers) {
+    const network = getNetwork({
+      chainFamily: "evm",
+      chainSelectorName: config.evms[0].chainSelectorName,
+      isTestnet: true,
+    });
+
+    if (!network) {
+      throw new Error(`Network not found: ${config.evms[0].chainSelectorName}`);
+    }
+
+    const evmClient = new cre.capabilities.EVMClient(network.chainSelector.selector);
+    const settlementEventHash = keccak256(toHex(SETTLEMENT_REQUESTED_SIGNATURE));
+    const disputeEventHash = keccak256(toHex(DISPUTE_OPENED_SIGNATURE));
 
     // Day 2: Log Trigger - Event-Driven Settlement (AI-powered)
-    cre.handler(
-      evmClient.logTrigger({
-        addresses: [config.evms[0].marketAddress],
-        topics: [{ values: [settlementEventHash] }],
-        confidence: "CONFIDENCE_LEVEL_FINALIZED",
-      }),
-      onLogTrigger
-    ),
-
-    // Day 3: Cron Trigger - Auto-Settlement for Price Markets
-    // Runs every hour to check if price conditions are met
-    cre.handler(
-      cronCapability.trigger({
-        schedule: "0 * * * *", // Every hour at minute 0
-      }),
-      onCronTrigger
-    ),
+    handlers.push(
+      cre.handler(
+        evmClient.logTrigger({
+          addresses: [config.evms[0].marketAddress],
+          topics: [{ values: [settlementEventHash] }],
+          confidence: "CONFIDENCE_LEVEL_FINALIZED",
+        }),
+        onLogTrigger
+      )
+    );
 
     // Day 4: Log Trigger - Dispute Resolution (NEW!)
     // Triggered when a user opens a dispute on a settled market
-    cre.handler(
-      evmClient.logTrigger({
-        addresses: [config.evms[0].marketAddress],
-        topics: [{ values: [disputeEventHash] }],
-        confidence: "CONFIDENCE_LEVEL_FINALIZED",
-      }),
-      onDisputeTrigger
-    ),
-  ];
+    handlers.push(
+      cre.handler(
+        evmClient.logTrigger({
+          addresses: [config.evms[0].marketAddress],
+          topics: [{ values: [disputeEventHash] }],
+          confidence: "CONFIDENCE_LEVEL_FINALIZED",
+        }),
+        onDisputeTrigger
+      )
+    );
+  }
+
+  // Day 3: Cron Trigger for Auto-Settlement (NEW!)
+  if (!config.disableCronTrigger) {
+    const cronCapability = new cre.capabilities.CronCapability();
+    handlers.push(
+      cre.handler(
+        cronCapability.trigger({
+          schedule: "0 * * * *", // Every hour at minute 0
+        }),
+        onCronTrigger
+      )
+    );
+  }
+
+  return handlers;
 };
 
 // ================================================================

@@ -1,6 +1,6 @@
 "use client";
 
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useAccount, useReadContract } from "wagmi";
 import { encodeAbiParameters, concat } from "viem";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -9,6 +9,7 @@ import {
   PREDICTION_MARKET_ADDRESS,
   PREDICTION_MARKET_ABI,
 } from "@/lib/contract";
+import { useReliableWrite } from "@/hooks/useReliableWrite";
 import { Badge } from "@/components/ui/Badge";
 import { DecisionPanel } from "@/components/market/DecisionPanel";
 import { PredictForm } from "@/components/market/PredictForm";
@@ -70,9 +71,7 @@ export default function MarketDetail() {
     (marketResult as any)?.question?.match(/(?:propiedad|property)\s*id\s*(\d+)/i)?.[1] ??
     (marketId !== undefined ? marketId.toString() : undefined);
 
-  const { data: hash, writeContract, isPending: isWritePending, error: writeError } = useWriteContract();
-
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  const { writeContract, hash, isPending: isWritePending, isConfirming, isSuccess, error: writeError } = useReliableWrite();
 
   // Auto-refresh (silent)
   useEffect(() => {

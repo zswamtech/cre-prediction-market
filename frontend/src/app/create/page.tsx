@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useAccount } from "wagmi";
 import Link from "next/link";
 import { PREDICTION_MARKET_ADDRESS, PREDICTION_MARKET_ABI } from "@/lib/contract";
+import { useReliableWrite } from "@/hooks/useReliableWrite";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 
@@ -13,11 +14,7 @@ export default function CreateMarket() {
   const { isConnected } = useAccount();
   const [question, setQuestion] = useState("");
 
-  const { data: hash, writeContract, isPending, error } = useWriteContract();
-
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash,
-  });
+  const { writeContract, hash, isPending, isConfirming, isSuccess, error } = useReliableWrite();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

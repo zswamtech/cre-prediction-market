@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useAccount } from "wagmi";
 import { ConnectKitButton } from "connectkit";
 import Link from "next/link";
 import { PREDICTION_MARKET_ADDRESS, PREDICTION_MARKET_ABI } from "@/lib/contract";
 import { useUserPositions } from "@/hooks/useUserPositions";
+import { useReliableWrite } from "@/hooks/useReliableWrite";
 import type { FilterOption } from "@/components/dashboard/FilterTabs";
 import { FilterTabs } from "@/components/dashboard/FilterTabs";
 import { SummaryStats } from "@/components/dashboard/SummaryStats";
@@ -16,8 +17,7 @@ export default function DashboardPage() {
   const { address } = useAccount();
   const [filter, setFilter] = useState<FilterOption>("all");
 
-  const { data: hash, writeContract, isPending: isClaiming } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  const { writeContract, isPending: isClaiming, isConfirming, isSuccess } = useReliableWrite();
   const [claimingMarketId, setClaimingMarketId] = useState<number | null>(null);
 
   const handleClaim = (marketId: number) => {

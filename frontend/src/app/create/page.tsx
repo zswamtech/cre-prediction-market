@@ -255,42 +255,70 @@ export default function CreateMarket() {
       updateBundleItem(item.id, { status: "awaiting_signature" });
 
       try {
-        // Use our reliable write which bypasses MetaMask RPC for gas estimation
         let txHash: `0x${string}` | undefined;
 
-        // We need to use writeContractAsync pattern here for sequential execution
-        // Since useReliableWrite uses sendTransaction, we'll do manual encoding
-        const { encodeFunctionData } = await import("viem");
+        const { encodeFunctionData, createWalletClient, custom } = await import("viem");
+        const { sepolia } = await import("viem/chains");
+
+        console.log(`[Bundle] Creating market: "${item.question.slice(0, 60)}..."`);
+
         const data = encodeFunctionData({
           abi: PREDICTION_MARKET_ABI,
           functionName: "createMarket",
           args: [item.question],
         });
 
-        // Estimate gas using our reliable RPCs
-        let gas = 300_000n;
-        try {
-          if (publicClient) {
-            const estimated = await publicClient.estimateGas({
-              to: PREDICTION_MARKET_ADDRESS,
-              data,
-              account: address,
-            });
-            gas = (estimated * 120n) / 100n;
+        // Pre-compute ALL tx params via our reliable RPCs
+        // so MetaMask has zero reason to call its own (rate-limited) RPC
+        let gas = 500_000n;
+        let nonce: number | undefined;
+        let maxFeePerGas: bigint | undefined;
+        let maxPriorityFeePerGas: bigint | undefined;
+
+        if (publicClient) {
+          try {
+            const [estimated, gasPrice, txCount] = await Promise.all([
+              publicClient.estimateGas({
+                to: PREDICTION_MARKET_ADDRESS,
+                data,
+                account: address,
+              }),
+              publicClient.getGasPrice(),
+              publicClient.getTransactionCount({ address: address! }),
+            ]);
+            gas = (estimated * 150n) / 100n;
+            // EIP-1559: set maxFeePerGas generously so MetaMask doesn't override
+            maxFeePerGas = gasPrice * 2n;
+            maxPriorityFeePerGas = gasPrice / 10n; // ~10% tip
+            nonce = txCount + index; // sequential nonce for bundle items
+            console.log(`[Bundle] Pre-computed: gas=${gas}, maxFee=${maxFeePerGas}, nonce=${nonce}`);
+          } catch (preErr) {
+            console.warn("[Bundle] Pre-computation partial failure:", preErr);
           }
-        } catch {
-          // use default
         }
 
-        // Send via wallet
-        const { sendTransaction } = await import("wagmi/actions");
-        const { config } = await import("@/lib/wagmi");
+        // Use window.ethereum directly — bypasses wagmi connector RPC issues
+        if (typeof window !== "undefined" && (window as any).ethereum) {
+          const walletClient = createWalletClient({
+            chain: sepolia,
+            transport: custom((window as any).ethereum),
+          });
 
-        txHash = await sendTransaction(config, {
-          to: PREDICTION_MARKET_ADDRESS,
-          data,
-          gas,
-        });
+          console.log("[Bundle] Sending via walletClient.sendTransaction...");
+          txHash = await walletClient.sendTransaction({
+            to: PREDICTION_MARKET_ADDRESS,
+            data,
+            gas,
+            ...(maxFeePerGas ? { maxFeePerGas } : {}),
+            ...(maxPriorityFeePerGas ? { maxPriorityFeePerGas } : {}),
+            ...(nonce !== undefined ? { nonce } : {}),
+            chain: sepolia,
+            account: address!,
+          });
+          console.log("[Bundle] TX sent:", txHash);
+        } else {
+          throw new Error("No wallet provider found (window.ethereum)");
+        }
 
         updateBundleItem(item.id, { status: "broadcasted", txHash });
 
@@ -337,11 +365,13 @@ export default function CreateMarket() {
           }
         }
       } catch (executionError) {
-        const message = executionError instanceof Error
-          ? executionError.message.split("\n")[0]
+        console.error("[Bundle] Execution error:", executionError);
+        const fullMessage = executionError instanceof Error
+          ? executionError.message
           : "Error al crear la poliza.";
+        const message = fullMessage.length > 200 ? fullMessage.slice(0, 200) + "..." : fullMessage;
 
-        const isUserReject = /user rejected|rejected the request|user denied/i.test(message);
+        const isUserReject = /user rejected|rejected the request|user denied/i.test(fullMessage);
 
         updateBundleItem(item.id, {
           status: "failed",
@@ -366,6 +396,11 @@ export default function CreateMarket() {
     if (bundleCreating) return;
     setSubmitError(null);
     setBundleError(null);
+
+    if (!isConnected || !address) {
+      setBundleError("Conecta tu wallet primero.");
+      return;
+    }
 
     let executionItems = bundleItems;
 

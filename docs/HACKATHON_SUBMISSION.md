@@ -1,5 +1,10 @@
 # Convergence Hackathon — Submission (Copy/Paste)
 
+Spanish-ready assets:
+
+- Airtable ES copy/paste: `docs/AIRTABLE_SUBMISSION_ES.md`
+- Official video script (<= 5 min): `docs/VIDEO_SCRIPT_OFICIAL_ES.md`
+
 Use this file to fill the Airtable form quickly.
 
 ---
@@ -12,17 +17,19 @@ Use this file to fill the Airtable form quickly.
 
 ## 1‑line description (≤ 80–100 chars)
 
-Parametric rental insurance: real‑world data + AI verdicts, settled onchain via CRE.
+Parametric flight-delay insurance with CRE + AI, settled onchain in seconds.
 
 ---
 
 ## Full description
 
-FairLease is a parametric “quality‑of‑life” insurance layer for rentals.
+FairLease is a parametric insurance layer for real-world experiences, with a **flight-delay first** go-to-market.
 
-Instead of handling disputes manually (noise, safety issues, construction works, severe weather), FairLease lets a landlord/manager and tenant fund two underwriting pools (**YES = payout**, **NO = no‑claim**) and automatically resolves the policy using verifiable execution.
+Instead of manual and slow compensation claims, FairLease lets users fund two underwriting pools (**YES = payout**, **NO = no‑claim**) and resolves policies automatically with verifiable execution.
 
-When a policy is ready to be settled, a Chainlink CRE workflow reads the policy from a Sepolia smart contract, fetches trusted offchain signals (IoT/urban metrics from an oracle service + weather from Open‑Meteo), queries Gemini for a strict JSON verdict, reaches consensus, and writes the settlement back on‑chain so winners can claim.
+For flight policies, the CRE workflow reads policy data from Sepolia, fetches delay/cancelation signals from the flight oracle endpoint, queries Gemini with strict JSON output, falls back to deterministic rules when needed, and writes the settlement onchain so winners can claim.
+
+Property quality-of-life policies (noise/safety/construction/weather) remain available as a secondary use case to prove cross-vertical extensibility.
 
 ---
 
@@ -33,8 +40,8 @@ When a policy is ready to be settled, a Chainlink CRE workflow reads the policy 
 - **CRE workflow (TypeScript → WASM):**
   - EVM read/write for policy settlement
   - HTTP requests to:
-    - Oracle service (`docs/integration/server-oracle.js`) for urban metrics
-    - Open‑Meteo for weather
+    - Oracle service (`docs/integration/server-oracle.js`) for flight delay + property metrics
+    - Open‑Meteo for weather (property flow)
     - Gemini for the AI verdict
 - **Observation window rule:** workflow refuses to settle before `minMarketAgeMinutes` (no contract changes).
 
@@ -42,9 +49,10 @@ When a policy is ready to be settled, a Chainlink CRE workflow reads the policy 
 
 ## Challenges faced
 
-- Mapping “real‑world” identifiers (Property ID) into onchain policies deterministically.
+- Mapping real-world identifiers (flight code/date and property ID) into onchain policies deterministically.
 - Designing a strict AI prompt + JSON‑only output to avoid ambiguous settlements.
 - Avoiding rate limits and making the demo resilient (fallback when Gemini returns 429).
+- Keeping network/RPC consistency between wallet-signed writes and frontend confirmations during live demos.
 - Keeping secrets safe during demos (no verbose logs; no secrets committed).
 
 ---

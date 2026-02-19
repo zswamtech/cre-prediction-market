@@ -11,10 +11,14 @@ import {
 } from "@/lib/contract";
 import { useReliableWrite } from "@/hooks/useReliableWrite";
 import { Badge } from "@/components/ui/Badge";
-import { DecisionPanel } from "@/components/market/DecisionPanel";
+import { DecisionPanel, type FlightOracleData } from "@/components/market/DecisionPanel";
 import { PredictForm } from "@/components/market/PredictForm";
 
 const SEP_CHAINLINK_FORWARDER = "0x15fc6ae953e024d975e77382eeec56a9101f9f88";
+const FLIGHT_ORACLE_BASE_URL =
+  process.env.NEXT_PUBLIC_FLIGHT_ORACLE_BASE_URL || "http://127.0.0.1:3101";
+const FLIGHT_KEYWORDS_RE = /\b(vuelo|flight|delay|retras[oa]s?|cancelad[oa]|cancelled)\b/i;
+const FLIGHT_ID_RE = /\b([A-Z]{2}\d{3,5})\b/;
 
 type OracleMetrics = {
   address?: string;
@@ -51,6 +55,9 @@ export default function MarketDetail() {
   const [weatherData, setWeatherData] = useState<WeatherMetrics | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(false);
   const [weatherError, setWeatherError] = useState<string | null>(null);
+  const [flightData, setFlightData] = useState<FlightOracleData | null>(null);
+  const [flightLoading, setFlightLoading] = useState(false);
+  const [flightError, setFlightError] = useState<string | null>(null);
   const [showAdmin, setShowAdmin] = useState(false);
 
   const marketId = id ? BigInt(Array.isArray(id) ? id[0] : id) : undefined;
@@ -108,6 +115,41 @@ export default function MarketDetail() {
     const interval = setInterval(fetchOracle, 15000);
     return () => { cancelled = true; clearInterval(interval); };
   }, [oracleZoneId, oracleBaseUrl]);
+
+  // Detect flight policy from question text
+  const questionText = (marketResult as any)?.question ?? "";
+  const isFlightPolicy = FLIGHT_KEYWORDS_RE.test(questionText);
+  const extractedFlightId = questionText.match(FLIGHT_ID_RE)?.[1] ?? null;
+
+  // Flight oracle fetch (only for flight policies)
+  useEffect(() => {
+    if (!isFlightPolicy || !extractedFlightId) return;
+    let cancelled = false;
+    const baseUrl = FLIGHT_ORACLE_BASE_URL.replace(/\/+$/, "");
+
+    const fetchFlight = async () => {
+      setFlightLoading(true);
+      setFlightError(null);
+      try {
+        const response = await fetch(`${baseUrl}/api/flight-delay/${extractedFlightId}`);
+        if (!response.ok) throw new Error(`Flight oracle responded with ${response.status}`);
+        const json = await response.json();
+        if (!json?.success) throw new Error(json?.error || "Flight oracle response invalid");
+        if (!cancelled) setFlightData(json.data ?? null);
+      } catch (error) {
+        if (!cancelled) {
+          setFlightData(null);
+          setFlightError(error instanceof Error ? error.message : "Flight oracle error");
+        }
+      } finally {
+        if (!cancelled) setFlightLoading(false);
+      }
+    };
+
+    fetchFlight();
+    const interval = setInterval(fetchFlight, 30000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [isFlightPolicy, extractedFlightId]);
 
   // Weather fetch
   useEffect(() => {
@@ -267,12 +309,18 @@ export default function MarketDetail() {
         >
           ← Volver a polizas
         </Link>
-        <div className="flex items-center gap-3 mb-3">
+        <div className="flex items-center gap-3 mb-3 flex-wrap">
           <Badge variant="info">Poliza #{marketId.toString()}</Badge>
+          <Badge variant={isFlightPolicy ? "flight" : "property"}>
+            {isFlightPolicy ? "✈️ Vuelo" : "🏠 Inmueble"}
+          </Badge>
           {market.settled ? (
             <Badge variant="settled">Resuelta</Badge>
           ) : (
             <Badge variant="active">Activa</Badge>
+          )}
+          {isFlightPolicy && extractedFlightId && (
+            <Badge variant="info">{extractedFlightId}</Badge>
           )}
         </div>
         <h1 className="text-2xl md:text-3xl font-bold text-white">
@@ -285,6 +333,10 @@ export default function MarketDetail() {
         {/* Left: Evidence & Result */}
         <DecisionPanel
           market={market}
+          isFlightPolicy={isFlightPolicy}
+          flightData={flightData}
+          flightLoading={flightLoading}
+          flightError={flightError}
           oracleData={oracleData}
           oracleLoading={oracleLoading}
           oracleError={oracleError}

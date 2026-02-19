@@ -9,6 +9,7 @@ const navLinks = [
   { href: "/", label: "Inicio" },
   { href: "/create", label: "Crear Poliza" },
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/simulator", label: "Simulador" },
 ];
 
 export function Navbar() {

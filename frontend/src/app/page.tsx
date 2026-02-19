@@ -1,51 +1,55 @@
 "use client";
 
-import { ConnectKitButton } from "connectkit";
 import { useAccount, useReadContract, useReadContracts } from "wagmi";
 import { formatEther } from "viem";
 import Link from "next/link";
 import {
   PREDICTION_MARKET_ADDRESS,
   PREDICTION_MARKET_ABI,
-  DISPUTE_CONFIDENCE_THRESHOLD
+  DISPUTE_CONFIDENCE_THRESHOLD,
 } from "@/lib/contract";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo } from "react";
+import { Badge } from "@/components/ui/Badge";
+import { Card } from "@/components/ui/Card";
+import { StatCard } from "@/components/ui/StatCard";
+import { Button } from "@/components/ui/Button";
+
+const POLICIES_LIMIT = 12;
+
+function PoolBar({ yesPool, noPool }: { yesPool: bigint; noPool: bigint }) {
+  const total = yesPool + noPool;
+  if (total === 0n) return null;
+  const yesPct = Number((yesPool * 100n) / total);
+  return (
+    <div className="w-full h-2 rounded-full bg-gray-700/50 overflow-hidden flex">
+      <div
+        className="h-full bg-green-500/70 transition-all duration-500"
+        style={{ width: `${yesPct}%` }}
+      />
+      <div
+        className="h-full bg-red-500/70 transition-all duration-500"
+        style={{ width: `${100 - yesPct}%` }}
+      />
+    </div>
+  );
+}
 
 export default function Home() {
   const { isConnected } = useAccount();
-  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
   const { data: nextMarketId, isLoading, error, refetch: refetchMarkets } = useReadContract({
     address: PREDICTION_MARKET_ADDRESS,
     abi: PREDICTION_MARKET_ABI,
     functionName: "getNextMarketId",
-    query: {
-      // ✅ Deshabilitar caché de wagmi
-      gcTime: 0,
-      staleTime: 0,
-    }
+    query: { gcTime: 0, staleTime: 0 },
   });
 
-  // ✅ Auto-refresh cada 10 segundos
   useEffect(() => {
-    // Inicializar en el cliente
-    setLastRefresh(new Date());
-    
     const interval = setInterval(() => {
-      console.log("🔄 Refrescando mercados...");
       refetchMarkets();
-      setLastRefresh(new Date());
     }, 10000);
-
     return () => clearInterval(interval);
   }, [refetchMarkets]);
-
-  // Debug logging
-  useEffect(() => {
-    console.log("nextMarketId:", nextMarketId);
-    console.log("isLoading:", isLoading);
-    console.log("error:", error);
-  }, [nextMarketId, isLoading, error]);
 
   const marketCount = nextMarketId ? Number(nextMarketId) : 0;
 
@@ -58,263 +62,217 @@ export default function Home() {
 
   const { data: markets, refetch: refetchMarketsList } = useReadContracts({
     contracts: marketCalls,
-    query: {
-      // ✅ Deshabilitar caché de wagmi
-      gcTime: 0,
-      staleTime: 0,
-    }
+    query: { gcTime: 0, staleTime: 0 },
   });
 
-  // ✅ Debug: Log market states
-  useEffect(() => {
-    if (markets) {
-      console.log("📊 Markets data:", markets);
-      markets.forEach((m, idx) => {
-        if (m.status === "success" && m.result) {
-          console.log(`Market #${idx}:`, {
-            settled: m.result.settled,
-            question: m.result.question,
-            yesPool: formatEther(m.result.totalYesPool),
-            noPool: formatEther(m.result.totalNoPool),
-            outcome: m.result.settled ? (m.result.outcome === 0 ? "YES" : "NO") : "N/A",
-            confidence: m.result.settled ? `${m.result.confidence / 100}%` : "N/A",
-          });
-        }
-      });
-    }
-  }, [markets]);
-
-  // ✅ También refresca la lista de mercados
   useEffect(() => {
     const interval = setInterval(() => {
-      if (marketCount > 0) {
-        console.log("🔄 Refrescando lista de mercados...");
-        refetchMarketsList();
-      }
+      if (marketCount > 0) refetchMarketsList();
     }, 10000);
-
     return () => clearInterval(interval);
   }, [refetchMarketsList, marketCount]);
 
-  // Función manual de refresh
-  const handleManualRefresh = () => {
-    console.log("🔄 Refresh manual...");
-    refetchMarkets();
-    refetchMarketsList();
-    setLastRefresh(new Date());
+  const orderedMarkets = useMemo(() => {
+    if (!markets) return [];
+    return markets
+      .map((result, marketId) => ({ result, marketId }))
+      .sort((a, b) => b.marketId - a.marketId)
+      .slice(0, POLICIES_LIMIT);
+  }, [markets]);
+
+  const activeCount = markets?.filter(m => m.status === "success" && !m.result?.settled).length || 0;
+  const settledCount = markets?.filter(m => m.status === "success" && m.result?.settled).length || 0;
+  const totalPoolEth = useMemo(() => {
+    if (!markets) return "0";
+    let total = 0n;
+    for (const m of markets) {
+      if (m.status === "success" && m.result) {
+        total += m.result.totalYesPool + m.result.totalNoPool;
+      }
+    }
+    return formatEther(total);
+  }, [markets]);
+
+  const inferPolicyIcon = (question: string) => {
+    if (/\b(vuelo|flight|delay|retras|cancelad|cancelled)\b/i.test(question)) return "✈️";
+    return "🏠";
   };
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <header className="flex justify-between items-center mb-12">
-        <div>
-          <h1 className="text-4xl font-bold text-white mb-2">
-            🏠 FairLease — Seguro paramétrico (CRE)
+      {/* Hero Section */}
+      <section className="relative py-16 md:py-24 text-center overflow-hidden">
+        {/* Background orbs */}
+        <div className="absolute top-0 left-1/4 w-72 h-72 bg-purple-600/20 rounded-full blur-3xl animate-float" />
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-600/15 rounded-full blur-3xl animate-float" style={{ animationDelay: "1.5s" }} />
+
+        <div className="relative z-10">
+          <h1 className="text-5xl md:text-7xl font-extrabold mb-4 animate-fade-in-up">
+            <span className="gradient-text">FairLease</span>
           </h1>
-          <p className="text-gray-400">
-            Pool de garantías + liquidación automática con IA y datos reales
+          <p className="text-xl md:text-2xl text-gray-300 max-w-2xl mx-auto mb-3 animate-fade-in-up-delay-1">
+            Seguro parametrico de experiencias
           </p>
-        </div>
-        <div className="flex gap-4 items-center">
-          {isConnected && (
-            <Link
-              href="/create"
-              className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-medium transition"
-            >
-              + Crear póliza
+          <p className="text-base text-gray-400 max-w-xl mx-auto mb-8 animate-fade-in-up-delay-2">
+            Proteccion automatica para tu vuelo y tu estadia. Verificado por Chainlink CRE + IA.
+          </p>
+          <div className="flex flex-wrap justify-center gap-4 animate-fade-in-up-delay-3">
+            <Link href="/create">
+              <Button variant="primary" size="lg">Crear Poliza</Button>
             </Link>
-          )}
-          <ConnectKitButton />
-        </div>
-      </header>
-
-      {/* Auto-refresh indicator */}
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-400">
-            Última actualización: {lastRefresh?.toLocaleTimeString() || 'Cargando...'}
-          </span>
-          <button
-            onClick={handleManualRefresh}
-            className="text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 px-3 py-1 rounded transition"
-          >
-            🔄 Actualizar ahora
-          </button>
-        </div>
-        <span className="text-xs text-gray-500">
-          Actualización automática cada 10s
-        </span>
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
-        <div className="bg-gray-800/50 backdrop-blur rounded-xl p-6 border border-gray-700">
-          <p className="text-gray-400 text-sm">Pólizas totales</p>
-          <p className="text-3xl font-bold text-white">{marketCount}</p>
-        </div>
-        <div className="bg-gray-800/50 backdrop-blur rounded-xl p-6 border border-gray-700">
-          <p className="text-gray-400 text-sm">Activas</p>
-          <p className="text-3xl font-bold text-yellow-400">
-            {markets?.filter(m => m.status === "success" && !m.result?.settled).length || 0}
-          </p>
-        </div>
-        <div className="bg-gray-800/50 backdrop-blur rounded-xl p-6 border border-gray-700">
-          <p className="text-gray-400 text-sm">Resueltas</p>
-          <p className="text-3xl font-bold text-green-400">
-            {markets?.filter(m => m.status === "success" && m.result?.settled).length || 0}
-          </p>
-        </div>
-        <div className="bg-gray-800/50 backdrop-blur rounded-xl p-6 border border-gray-700">
-          <p className="text-gray-400 text-sm">Red</p>
-          <p className="text-2xl font-bold text-purple-400">Sepolia</p>
-        </div>
-      </div>
-
-      {/* Verification signals used by the CRE workflow */}
-      <div className="bg-gradient-to-r from-purple-900/30 to-blue-900/30 rounded-xl p-6 border border-purple-700/50 mb-8">
-        <h3 className="text-lg font-semibold text-white mb-3">
-          Orquestación CRE (cómo se verifica)
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">🤖</span>
-            <div>
-              <p className="text-white font-medium">Veredicto IA</p>
-              <p className="text-gray-400">Gemini (SÍ/NO + confianza)</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">🏠</span>
-            <div>
-              <p className="text-white font-medium">Oracle urbano</p>
-              <p className="text-gray-400">Ruido, seguridad, obras, transporte</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">🌦️</span>
-            <div>
-              <p className="text-white font-medium">Clima</p>
-              <p className="text-gray-400">Open‑Meteo (precipitación / viento)</p>
-            </div>
-          </div>
-        </div>
-        <p className="text-xs text-gray-500 mt-4">
-          Nota: En esta demo la póliza se modela como un contrato SÍ/NO con pools
-          (tipo prediction market). Roadmap: colateral en stablecoin + disputas (V2).
-        </p>
-      </div>
-
-      <h2 className="text-2xl font-bold text-white mb-6">Pólizas</h2>
-
-      {error && (
-        <div className="bg-red-900/50 border border-red-500 rounded-xl p-4 mb-6">
-          <p className="text-red-400 text-sm">
-            Error cargando pólizas: {error.message}
-          </p>
-        </div>
-      )}
-
-      {isLoading ? (
-        <div className="bg-gray-800/50 backdrop-blur rounded-xl p-12 border border-gray-700 text-center">
-          <div className="animate-pulse">
-            <div className="h-4 bg-gray-700 rounded w-1/3 mx-auto mb-4"></div>
-            <p className="text-gray-400">Cargando pólizas...</p>
-          </div>
-        </div>
-      ) : marketCount === 0 ? (
-        <div className="bg-gray-800/50 backdrop-blur rounded-xl p-12 border border-gray-700 text-center">
-          <p className="text-gray-400 text-lg">Aún no hay pólizas.</p>
-          {isConnected && (
-            <Link
-              href="/create"
-              className="inline-block mt-4 bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-medium transition"
-            >
-              Crear la primera póliza
-            </Link>
-          )}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {markets?.map((result, index) => {
-            if (result.status !== "success" || !result.result) return null;
-            const market = result.result;
-
-            return (
-              <Link
-                key={index}
-                href={`/market/${index}`}
-                className="bg-gray-800/50 backdrop-blur rounded-xl p-6 border border-gray-700 hover:border-purple-500 transition group"
-              >
-                <div className="flex justify-between items-start mb-4">
-                  <span className="text-xs bg-purple-600/20 text-purple-400 px-2 py-1 rounded">
-                    Póliza #{index}
-                  </span>
-                  {market.settled ? (
-                    <span className="text-xs bg-green-600/20 text-green-400 px-2 py-1 rounded flex items-center gap-1">
-                      ✓ Resuelta
-                    </span>
-                  ) : (
-                    <span className="text-xs bg-yellow-600/20 text-yellow-400 px-2 py-1 rounded flex items-center gap-1">
-                      ● Activa
-                    </span>
-                  )}
-                </div>
-
-                <h3 className="text-lg font-semibold text-white mb-4 group-hover:text-purple-400 transition">
-                  {market.question}
-                </h3>
-
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Pool SÍ (payout)</span>
-                    <span className="text-green-400">
-                      {formatEther(market.totalYesPool)} ETH
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Pool NO (sin reclamo)</span>
-                    <span className="text-red-400">
-                      {formatEther(market.totalNoPool)} ETH
-                    </span>
-                  </div>
-                </div>
-
-                {market.settled && (
-                  <div className="mt-4 pt-4 border-t border-gray-700">
-                    <div className="flex justify-between items-center">
-                      <p className="text-sm text-gray-400">
-                        Resultado:{" "}
-                        <span
-                          className={
-                            market.outcome === 0 ? "text-green-400" : "text-red-400"
-                          }
-                        >
-                          {market.outcome === 0 ? "SÍ (payout)" : "NO (sin reclamo)"}
-                        </span>
-                      </p>
-                      {/* Confidence indicator */}
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded ${
-                          market.confidence >= 10000
-                            ? "bg-blue-600/20 text-blue-400"
-                            : market.confidence >= DISPUTE_CONFIDENCE_THRESHOLD
-                            ? "bg-green-600/20 text-green-400"
-                            : "bg-yellow-600/20 text-yellow-400"
-                        }`}
-                      >
-                        {market.confidence >= 10000
-                          ? "🔗 Verificado"
-                          : market.confidence >= DISPUTE_CONFIDENCE_THRESHOLD
-                          ? `${market.confidence / 100}%`
-                          : `⚠ ${market.confidence / 100}%`}
-                      </span>
-                    </div>
-                  </div>
-                )}
+            {isConnected && (
+              <Link href="/dashboard">
+                <Button variant="outline" size="lg">Mi Dashboard</Button>
               </Link>
-            );
-          })}
+            )}
+          </div>
         </div>
-      )}
+      </section>
+
+      {/* How it works */}
+      <section className="py-12 mb-8">
+        <h2 className="text-2xl font-bold text-white text-center mb-10">Como funciona</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card className="text-center animate-fade-in-up">
+            <div className="text-4xl mb-4">🛡️</div>
+            <h3 className="text-lg font-semibold text-white mb-2">1. Crea tu poliza</h3>
+            <p className="text-sm text-gray-400">
+              Define la condicion parametrica: retraso de vuelo, calidad de estadia, clima severo.
+            </p>
+          </Card>
+          <Card className="text-center animate-fade-in-up-delay-1">
+            <div className="text-4xl mb-4">💎</div>
+            <h3 className="text-lg font-semibold text-white mb-2">2. Aporta al pool</h3>
+            <p className="text-sm text-gray-400">
+              Toma posicion SI o NO con ETH. Los fondos quedan en el smart contract en Sepolia.
+            </p>
+          </Card>
+          <Card className="text-center animate-fade-in-up-delay-2">
+            <div className="text-4xl mb-4">🤖</div>
+            <h3 className="text-lg font-semibold text-white mb-2">3. Liquidacion automatica</h3>
+            <p className="text-sm text-gray-400">
+              Chainlink CRE orquesta oracle de vuelos + Gemini IA para verificar y liquidar onchain.
+            </p>
+          </Card>
+        </div>
+      </section>
+
+      {/* Stats */}
+      <section className="mb-12">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <StatCard label="Polizas totales" value={marketCount} />
+          <StatCard label="Activas" value={activeCount} color="yellow" />
+          <StatCard label="Resueltas" value={settledCount} color="green" />
+          <StatCard label="Pool total" value={`${totalPoolEth} ETH`} color="purple" />
+        </div>
+      </section>
+
+      {/* Policies Grid */}
+      <section>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-white">Polizas</h2>
+          {marketCount > POLICIES_LIMIT && (
+            <span className="text-xs text-gray-500">
+              Mostrando {POLICIES_LIMIT} de {marketCount}
+            </span>
+          )}
+        </div>
+
+        {error && (
+          <Card className="mb-6 border-red-700/50">
+            <p className="text-red-400 text-sm">Error cargando polizas: {error.message}</p>
+          </Card>
+        )}
+
+        {isLoading ? (
+          <Card className="text-center py-12">
+            <div className="animate-shimmer h-4 bg-gray-700 rounded w-1/3 mx-auto mb-4" />
+            <p className="text-gray-400">Cargando polizas...</p>
+          </Card>
+        ) : marketCount === 0 ? (
+          <Card className="text-center py-12">
+            <p className="text-gray-400 text-lg mb-4">Aun no hay polizas.</p>
+            {isConnected && (
+              <Link href="/create">
+                <Button variant="primary">Crear la primera poliza</Button>
+              </Link>
+            )}
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {orderedMarkets.map(({ result, marketId }) => {
+              if (result.status !== "success" || !result.result) return null;
+              const market = result.result;
+              const icon = inferPolicyIcon(market.question || "");
+
+              return (
+                <Link key={marketId} href={`/market/${marketId}`}>
+                  <Card hover className="h-full group">
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="info">#{marketId}</Badge>
+                        <span className="text-lg">{icon}</span>
+                      </div>
+                      {market.settled ? (
+                        <Badge variant="settled">Resuelta</Badge>
+                      ) : (
+                        <Badge variant="active">Activa</Badge>
+                      )}
+                    </div>
+
+                    <h3 className="text-sm font-semibold text-white mb-4 group-hover:text-purple-400 transition line-clamp-3">
+                      {market.question}
+                    </h3>
+
+                    <PoolBar yesPool={market.totalYesPool} noPool={market.totalNoPool} />
+
+                    <div className="mt-3 space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-500">SI</span>
+                        <span className="text-green-400 font-mono">
+                          {formatEther(market.totalYesPool)} ETH
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-500">NO</span>
+                        <span className="text-red-400 font-mono">
+                          {formatEther(market.totalNoPool)} ETH
+                        </span>
+                      </div>
+                    </div>
+
+                    {market.settled && (
+                      <div className="mt-3 pt-3 border-t border-gray-700/50">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-gray-400">
+                            Resultado:{" "}
+                            <span className={market.outcome === 0 ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>
+                              {market.outcome === 0 ? "SI" : "NO"}
+                            </span>
+                          </span>
+                          <span
+                            className={`text-[11px] px-2 py-0.5 rounded ${
+                              market.confidence >= 10000
+                                ? "bg-blue-600/20 text-blue-400"
+                                : market.confidence >= DISPUTE_CONFIDENCE_THRESHOLD
+                                ? "bg-green-600/20 text-green-400"
+                                : "bg-yellow-600/20 text-yellow-400"
+                            }`}
+                          >
+                            {market.confidence >= 10000
+                              ? "Verificado"
+                              : `${market.confidence / 100}%`}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </Card>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

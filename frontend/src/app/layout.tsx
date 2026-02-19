@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
+import { Navbar } from "@/components/layout/Navbar";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "CRE Prediction Market",
-  description: "Decentralized prediction markets with AI-powered settlement",
+  title: "FairLease - Seguro Parametrico de Experiencias",
+  description: "Proteccion automatica para tu vuelo y tu estadia con Chainlink CRE + IA",
 };
 
 export default function RootLayout({
@@ -15,13 +16,12 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Expose TEST_MODE for E2E to ensure certain UI always renders
-  const isTest = process.env.NEXT_PUBLIC_TEST_MODE === '1';
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="es" suppressHydrationWarning>
       <body className={inter.className} data-test-mode={process.env.NEXT_PUBLIC_TEST_MODE || '0'}>
         <Providers>
-          <main className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900">
+          <Navbar />
+          <main className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900 pt-16">
             {children}
           </main>
         </Providers>

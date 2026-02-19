@@ -111,44 +111,63 @@ function Stat({
 }
 
 /* ================================================================== */
-/*  Mini bar chart (loss distribution)                                 */
+/*  Net distribution chart (profit/loss)                               */
 /* ================================================================== */
 
-function LossChart({
+function NetChart({
   histogram,
-  reserveAt99,
+  expectedNet,
   label,
+  color,
 }: {
   histogram: { bucket: number; count: number }[];
-  reserveAt99: number;
+  expectedNet: number;
   label: string;
+  color: "purple" | "blue";
 }) {
   if (histogram.length === 0) return null;
   const maxCount = Math.max(...histogram.map((h) => h.count));
+  const minBucket = histogram[0]?.bucket ?? 0;
+  const maxBucket = histogram[histogram.length - 1]?.bucket ?? 0;
+  const accentBar = color === "blue" ? "bg-blue-500/60" : "bg-purple-500/60";
+  const accentBarHigh = color === "blue" ? "bg-blue-400/80" : "bg-purple-400/80";
 
   return (
     <div>
-      <p className="text-xs text-gray-400 mb-2">{label} — Distribución de pérdidas</p>
-      <div className="flex items-end gap-[1px] h-24">
+      <p className="text-xs text-gray-400 mb-2">
+        {label} — Distribución de ganancia neta del portafolio
+      </p>
+      <div className="flex items-end gap-[1px] h-28 relative">
         {histogram.map((h, i) => {
           const pct = maxCount > 0 ? (h.count / maxCount) * 100 : 0;
-          const isReserve = h.bucket >= reserveAt99;
+          const isNegative = h.bucket < 0;
+          const isNearExpected =
+            Math.abs(h.bucket - expectedNet) <
+            (maxBucket - minBucket) / histogram.length;
           return (
             <div
               key={i}
               className={`flex-1 rounded-t transition-all ${
-                isReserve ? "bg-red-500/70" : "bg-purple-500/50"
+                isNegative
+                  ? "bg-red-500/60"
+                  : isNearExpected
+                    ? accentBarHigh
+                    : accentBar
               }`}
               style={{ height: `${Math.max(pct, 1)}%` }}
-              title={`Pérdida: $${h.bucket.toFixed(0)} — ${h.count} trials`}
+              title={`Net: $${h.bucket.toFixed(0)} — ${h.count} trials (${((h.count / histogram.reduce((s, x) => s + x.count, 0)) * 100).toFixed(1)}%)`}
             />
           );
         })}
       </div>
       <div className="flex justify-between text-[10px] text-gray-500 mt-1">
-        <span>$0</span>
-        <span className="text-red-400">← Reserve @99%: ${reserveAt99.toFixed(0)}</span>
-        <span>${histogram[histogram.length - 1]?.bucket.toFixed(0) ?? "0"}</span>
+        <span className={minBucket < 0 ? "text-red-400" : ""}>
+          ${minBucket.toFixed(0)}
+        </span>
+        <span className={color === "blue" ? "text-blue-400" : "text-purple-400"}>
+          ↑ E[net]: ${expectedNet.toFixed(0)}
+        </span>
+        <span>${maxBucket.toFixed(0)}</span>
       </div>
     </div>
   );
@@ -301,10 +320,11 @@ function ProductPanel({
           />
         </div>
 
-        <LossChart
-          histogram={result.histogram}
-          reserveAt99={result.reserveAt99}
+        <NetChart
+          histogram={result.netHistogram}
+          expectedNet={result.expectedNetPortfolio}
           label={config.label}
+          color={color}
         />
       </div>
     </div>

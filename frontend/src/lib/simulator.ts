@@ -37,8 +37,10 @@ export interface SimulationResult {
   reserveAt95: number;
   reserveAt99: number;
   deficitProbability: number;
-  /** Histogram buckets for loss distribution chart */
-  histogram: { bucket: number; count: number }[];
+  /** Histogram of net profit/loss distribution (negative = deficit) */
+  netHistogram: { bucket: number; count: number }[];
+  /** Histogram of loss-only distribution */
+  lossHistogram: { bucket: number; count: number }[];
 }
 
 export interface DualResult {
@@ -140,6 +142,7 @@ export function simulatePortfolio(
 
   const rng = mulberry32(seed + count);
   const losses: number[] = [];
+  const nets: number[] = [];
   let deficitEvents = 0;
 
   for (let t = 0; t < trials; t++) {
@@ -151,10 +154,12 @@ export function simulatePortfolio(
     const net = yesCount * netYes + noCount * netNo;
     const loss = Math.max(0, -net);
     losses.push(loss);
+    nets.push(net);
     if (loss > 0) deficitEvents++;
   }
 
   losses.sort((a, b) => a - b);
+  nets.sort((a, b) => a - b);
 
   return {
     nPolicies: count,
@@ -169,7 +174,8 @@ export function simulatePortfolio(
     reserveAt95: quantile(losses, 0.95),
     reserveAt99: quantile(losses, 0.99),
     deficitProbability: deficitEvents / trials,
-    histogram: buildHistogram(losses),
+    netHistogram: buildHistogram(nets),
+    lossHistogram: buildHistogram(losses),
   };
 }
 

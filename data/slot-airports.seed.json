@@ -1,0 +1,167 @@
+[
+  {
+    "iata": "MDE",
+    "icao": "SKRG",
+    "airportName": "Aeropuerto Internacional José María Córdova",
+    "city": "Rionegro (Medellín)",
+    "country": "Colombia",
+    "coordinationLevel": "L3",
+    "timezone": "America/Bogota",
+    "source": "seed-v1",
+    "updatedAt": "2026-02-20"
+  },
+  {
+    "iata": "BOG",
+    "icao": "SKBO",
+    "airportName": "Aeropuerto Internacional El Dorado",
+    "city": "Bogotá",
+    "country": "Colombia",
+    "coordinationLevel": "L3",
+    "timezone": "America/Bogota",
+    "source": "seed-v1",
+    "updatedAt": "2026-02-20"
+  },
+  {
+    "iata": "CTG",
+    "icao": "SKCG",
+    "airportName": "Aeropuerto Internacional Rafael Núñez",
+    "city": "Cartagena",
+    "country": "Colombia",
+    "coordinationLevel": "L2",
+    "timezone": "America/Bogota",
+    "source": "seed-v1",
+    "updatedAt": "2026-02-20"
+  },
+  {
+    "iata": "CLO",
+    "icao": "SKCO",
+    "airportName": "Aeropuerto Internacional Alfonso Bonilla Aragón",
+    "city": "Cali",
+    "country": "Colombia",
+    "coordinationLevel": "L2",
+    "timezone": "America/Bogota",
+    "source": "seed-v1",
+    "updatedAt": "2026-02-20"
+  },
+  {
+    "iata": "BAQ",
+    "icao": "SKBQ",
+    "airportName": "Aeropuerto Internacional Ernesto Cortissoz",
+    "city": "Barranquilla",
+    "country": "Colombia",
+    "coordinationLevel": "L1",
+    "timezone": "America/Bogota",
+    "source": "seed-v1",
+    "updatedAt": "2026-02-20"
+  },
+  {
+    "iata": "PTY",
+    "icao": "MPTO",
+    "airportName": "Aeropuerto Internacional de Tocumen",
+    "city": "Ciudad de Panamá",
+    "country": "Panama",
+    "coordinationLevel": "L3",
+    "timezone": "America/Panama",
+    "source": "seed-v1",
+    "updatedAt": "2026-02-20"
+  },
+  {
+    "iata": "MIA",
+    "icao": "KMIA",
+    "airportName": "Miami International Airport",
+    "city": "Miami",
+    "country": "USA",
+    "coordinationLevel": "L3",
+    "timezone": "America/New_York",
+    "source": "seed-v1",
+    "updatedAt": "2026-02-20"
+  },
+  {
+    "iata": "EWR",
+    "icao": "KEWR",
+    "airportName": "Newark Liberty International Airport",
+    "city": "Newark",
+    "country": "USA",
+    "coordinationLevel": "L3",
+    "timezone": "America/New_York",
+    "source": "seed-v1",
+    "updatedAt": "2026-02-20"
+  },
+  {
+    "iata": "JFK",
+    "icao": "KJFK",
+    "airportName": "John F. Kennedy International Airport",
+    "city": "New York",
+    "country": "USA",
+    "coordinationLevel": "L3",
+    "timezone": "America/New_York",
+    "source": "seed-v1",
+    "updatedAt": "2026-02-20"
+  },
+  {
+    "iata": "ORD",
+    "icao": "KORD",
+    "airportName": "O'Hare International Airport",
+    "city": "Chicago",
+    "country": "USA",
+    "coordinationLevel": "L3",
+    "timezone": "America/Chicago",
+    "source": "seed-v1",
+    "updatedAt": "2026-02-20"
+  },
+  {
+    "iata": "LAX",
+    "icao": "KLAX",
+    "airportName": "Los Angeles International Airport",
+    "city": "Los Angeles",
+    "country": "USA",
+    "coordinationLevel": "L3",
+    "timezone": "America/Los_Angeles",
+    "source": "seed-v1",
+    "updatedAt": "2026-02-20"
+  },
+  {
+    "iata": "GRU",
+    "icao": "SBGR",
+    "airportName": "Aeroporto Internacional de Guarulhos",
+    "city": "São Paulo",
+    "country": "Brazil",
+    "coordinationLevel": "L3",
+    "timezone": "America/Sao_Paulo",
+    "source": "seed-v1",
+    "updatedAt": "2026-02-20"
+  },
+  {
+    "iata": "LIM",
+    "icao": "SPJC",
+    "airportName": "Aeropuerto Internacional Jorge Chávez",
+    "city": "Lima",
+    "country": "Peru",
+    "coordinationLevel": "L3",
+    "timezone": "America/Lima",
+    "source": "seed-v1",
+    "updatedAt": "2026-02-20"
+  },
+  {
+    "iata": "SCL",
+    "icao": "SCEL",
+    "airportName": "Aeropuerto Internacional Arturo Merino Benítez",
+    "city": "Santiago",
+    "country": "Chile",
+    "coordinationLevel": "L3",
+    "timezone": "America/Santiago",
+    "source": "seed-v1",
+    "updatedAt": "2026-02-20"
+  },
+  {
+    "iata": "MAD",
+    "icao": "LEMD",
+    "airportName": "Aeropuerto Adolfo Suárez Madrid-Barajas",
+    "city": "Madrid",
+    "country": "Spain",
+    "coordinationLevel": "L3",
+    "timezone": "Europe/Madrid",
+    "source": "seed-v1",
+    "updatedAt": "2026-02-20"
+  }
+]

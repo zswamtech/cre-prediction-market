@@ -1,0 +1,16 @@
+iata,icao,airportName,city,country,coordinationLevel,timezone,source,updatedAt
+MDE,SKRG,Aeropuerto Internacional José María Córdova,Rionegro (Medellín),Colombia,L3,America/Bogota,seed-v1,2026-02-20
+BOG,SKBO,Aeropuerto Internacional El Dorado,Bogotá,Colombia,L3,America/Bogota,seed-v1,2026-02-20
+CTG,SKCG,Aeropuerto Internacional Rafael Núñez,Cartagena,Colombia,L2,America/Bogota,seed-v1,2026-02-20
+CLO,SKCO,Aeropuerto Internacional Alfonso Bonilla Aragón,Cali,Colombia,L2,America/Bogota,seed-v1,2026-02-20
+BAQ,SKBQ,Aeropuerto Internacional Ernesto Cortissoz,Barranquilla,Colombia,L1,America/Bogota,seed-v1,2026-02-20
+PTY,MPTO,Aeropuerto Internacional de Tocumen,Ciudad de Panamá,Panama,L3,America/Panama,seed-v1,2026-02-20
+MIA,KMIA,Miami International Airport,Miami,USA,L3,America/New_York,seed-v1,2026-02-20
+EWR,KEWR,Newark Liberty International Airport,Newark,USA,L3,America/New_York,seed-v1,2026-02-20
+JFK,KJFK,John F. Kennedy International Airport,New York,USA,L3,America/New_York,seed-v1,2026-02-20
+ORD,KORD,O'Hare International Airport,Chicago,USA,L3,America/Chicago,seed-v1,2026-02-20
+LAX,KLAX,Los Angeles International Airport,Los Angeles,USA,L3,America/Los_Angeles,seed-v1,2026-02-20
+GRU,SBGR,Aeroporto Internacional de Guarulhos,São Paulo,Brazil,L3,America/Sao_Paulo,seed-v1,2026-02-20
+LIM,SPJC,Aeropuerto Internacional Jorge Chávez,Lima,Peru,L3,America/Lima,seed-v1,2026-02-20
+SCL,SCEL,Aeropuerto Internacional Arturo Merino Benítez,Santiago,Chile,L3,America/Santiago,seed-v1,2026-02-20
+MAD,LEMD,Aeropuerto Adolfo Suárez Madrid-Barajas,Madrid,Spain,L3,Europe/Madrid,seed-v1,2026-02-20

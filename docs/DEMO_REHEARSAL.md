@@ -211,6 +211,90 @@ Valida:
 - reachability frontend
 - settlement CRE con hash
 
+## 3B) Sprint 2 — Oracle y datos en vivo
+
+### Modos del oracle (Sprint 2)
+
+El oracle ahora soporta tres modos configurables via `ORACLE_MODE`:
+
+| Modo | Descripción |
+| --- | --- |
+| `demo` | Fixtures estáticos (sin red) — siempre estable |
+| `live` | Llama al provider real; error si no responde |
+| `hybrid` | Intenta live; cae a demo con `fallbackReason` en la respuesta |
+
+```bash
+# Demo (default)
+node scripts/server-flight-oracle.js
+
+# Hybrid con AviationStack
+ORACLE_MODE=hybrid FLIGHT_PROVIDER=aviationstack AVIATIONSTACK_API_KEY=xxx \
+  node scripts/server-flight-oracle.js
+
+# Live con FlightAware (falla si no hay API key)
+ORACLE_MODE=live FLIGHT_PROVIDER=flightaware FLIGHTAWARE_API_KEY=xxx \
+  node scripts/server-flight-oracle.js
+```
+
+Variables de tuning:
+
+```bash
+FLIGHT_LIVE_TIMEOUT_MS=8000      # Timeout por request al provider (ms)
+FLIGHT_LIVE_CACHE_TTL_SEC=300    # TTL del cache en memoria (segundos)
+```
+
+Verificar modo activo:
+
+```bash
+curl -s http://127.0.0.1:3101/health | jq '.provider, .mode, .cacheTtlSec'
+```
+
+### Ingest histórico (Sprint 2)
+
+```bash
+# 1. Iniciar oracle
+node scripts/server-flight-oracle.js &
+
+# 2. Ingestar observaciones (7 días, 5 vuelos = 35 obs)
+INGEST_START_DATE=2025-01-01 INGEST_END_DATE=2025-01-07 \
+  node scripts/flight-live-ingest.js
+
+# 3. Generar reporte de riesgo/pricing
+node scripts/route-risk-report.js
+
+# 4. Ver artefactos
+ls artifacts/
+# flight-observations.csv
+# flight-observations.json
+# flight-risk-routes.csv
+# flight-risk-summary.md
+```
+
+### Catálogo de aeropuertos
+
+```bash
+# Generar artifacts/slot-airports.csv desde seed
+node scripts/slot-airports-sync.js
+
+# Con override CSV externo
+AIRPORTS_CSV=mi-override.csv node scripts/slot-airports-sync.js
+```
+
+### Risk report en 1 comando
+
+```bash
+node scripts/route-risk-report.js
+# Lee artifacts/flight-observations.csv o artifacts/flight-risk-observations.csv
+# Escribe artifacts/flight-risk-routes.csv + artifacts/flight-risk-summary.md
+```
+
+Parámetros ajustables:
+
+```bash
+TICKET_PRICE=125 BPS_TIER1=5000 BPS_TIER2=10000 MARGIN_PCT=20 \
+  node scripts/route-risk-report.js
+```
+
 ## 4) Troubleshooting rápido
 
 - `[FAIL] Missing required env var`: exportar variable faltante y reintentar.

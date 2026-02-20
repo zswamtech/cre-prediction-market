@@ -1,0 +1,6 @@
+route,samples,tier0_count,tier1_count,tier2_count,p_any_hat,p_any_ci95_lower,p_any_ci95_upper,p_tier1,p_tier2,bps_tier1,bps_tier2,ticket_price,e_payout,break_even_premium,recommended_premium,margin_pct,sample_flight_ids
+BOG->EWR,365,0,0,365,1,0.9896,1,0,1,5000,10000,125,125,125,150,20,UA5678
+MDE->BOG,365,0,365,0,1,0.9896,1,1,0,5000,10000,125,62.5,62.5,75,20,AV8520
+MDE->CTG,365,365,0,0,0,0,0.0104,0,0,5000,10000,125,0,0,0,20,LA4112
+MDE->MIA,365,0,365,0,1,0.9896,1,1,0,5000,10000,125,62.5,62.5,75,20,AA1234
+MDE->PTY,365,0,0,365,1,0.9896,1,0,1,5000,10000,125,125,125,150,20,CM0178

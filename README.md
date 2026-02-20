@@ -428,7 +428,53 @@ Expected trace for judges:
 See `docs/DEMO_REHEARSAL.md` for full troubleshooting.
 If you are moving to a fresh chat/session for the new product phase, use `docs/FLIGHT_DELAY_FOCUS_HANDOFF.md` as the phase source of truth.
 
-### 5) Financial viability simulation (1000 + 1000 with one script)
+### 5) Sprint 2 — Live data + route pricing
+
+#### Airport catalog
+
+```bash
+node scripts/slot-airports-sync.js
+# Output: artifacts/slot-airports.csv (15 airports, L1/L2/L3 coordination levels)
+```
+
+#### Historical flight ingest (queries oracle, not provider directly)
+
+```bash
+node scripts/server-flight-oracle.js &   # start oracle first
+
+INGEST_START_DATE=2025-01-01 INGEST_END_DATE=2025-01-07 \
+  node scripts/flight-live-ingest.js
+# Output: artifacts/flight-observations.csv + artifacts/flight-observations.json
+```
+
+#### Route risk + pricing report
+
+```bash
+node scripts/route-risk-report.js
+# Output: artifacts/flight-risk-routes.csv + artifacts/flight-risk-summary.md
+```
+
+Pricing model:
+
+```text
+E[payout] = (bps_tier1/10000) × ticket × P(tier1)
+          + (bps_tier2/10000) × ticket × P(tier2_or_cancelled)
+recommended_premium = E[payout] × (1 + margin%)
+```
+
+#### Oracle in hybrid mode with live provider
+
+```bash
+ORACLE_MODE=hybrid FLIGHT_PROVIDER=aviationstack AVIATIONSTACK_API_KEY=xxx \
+  node scripts/server-flight-oracle.js
+```
+
+New env vars: `FLIGHT_PROVIDER`, `FLIGHT_LIVE_TIMEOUT_MS`, `FLIGHT_LIVE_CACHE_TTL_SEC`.
+Response now includes `fallbackReason` when provider is unavailable (hybrid mode).
+
+See `docs/DEMO_REHEARSAL.md` section "3B" for full Sprint 2 runbook.
+
+### 6) Financial viability simulation (1000 + 1000 with one script)
 
 Run one command to simulate both product lines (`Inmueble` + `Viaje`) and combined reserve:
 

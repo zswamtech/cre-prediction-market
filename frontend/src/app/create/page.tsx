@@ -49,6 +49,14 @@ const POLICY_CREATED_EVENT_ABI = [
 const V3_PLACEHOLDER = "0x0000000000000000000000000000000000000000";
 const DEFAULT_ETH_PRICE_USD = Number(process.env.NEXT_PUBLIC_ETH_PRICE_USD || "3000");
 
+function formatEthAmount(value: number): string {
+  return `${value.toFixed(6)} ETH`;
+}
+
+function formatUsdApproxFromEth(valueEth: number): string {
+  return `~USD ${(valueEth * DEFAULT_ETH_PRICE_USD).toFixed(2)}`;
+}
+
 function createDraftId(): string {
   return `draft_${Date.now()}_${Math.floor(Math.random() * 1_000_000)}`;
 }
@@ -265,6 +273,48 @@ export default function CreateMarket() {
     }
     return null;
   }, [coverageCapEth, premiumRatePct]);
+
+  const v3PreSignSimulation = useMemo(() => {
+    if (!isV3 || policyType !== "flight") return null;
+
+    const coverageEth = Number.parseFloat(coverageCapEth);
+    const premiumPct = Number.parseFloat(premiumRatePct);
+    if (!Number.isFinite(coverageEth) || coverageEth <= 0) return null;
+    if (!Number.isFinite(premiumPct) || premiumPct <= 0) return null;
+
+    const premiumEth = coverageEth * (premiumPct / 100);
+    const tier1TravelerEth = coverageEth * 0.5;
+    const tier2TravelerEth = coverageEth;
+
+    const tier1InsurerEth = (coverageEth - tier1TravelerEth) + premiumEth;
+    const tier2InsurerEth = premiumEth;
+    const noBreachInsurerEth = coverageEth + premiumEth;
+
+    return {
+      premiumEth,
+      coverageEth,
+      tier1TravelerEth,
+      tier2TravelerEth,
+      tier1InsurerEth,
+      tier2InsurerEth,
+      noBreachInsurerEth,
+      tier1GapVsTicketEth:
+        tier1TicketEthEstimate === null
+          ? null
+          : Math.max(tier1TicketEthEstimate - tier1TravelerEth, 0),
+      tier2GapVsTicketEth:
+        ticketEthEstimate === null
+          ? null
+          : Math.max(ticketEthEstimate - tier2TravelerEth, 0),
+    };
+  }, [
+    coverageCapEth,
+    isV3,
+    policyType,
+    premiumRatePct,
+    tier1TicketEthEstimate,
+    ticketEthEstimate,
+  ]);
 
   const flightQuestionExamples = useMemo(() => {
     return buildFlightQuestionExamples(
@@ -526,7 +576,6 @@ export default function CreateMarket() {
         let targetAddress: `0x${string}` = PREDICTION_MARKET_ADDRESS;
 
         const { encodeFunctionData, createWalletClient, custom } = await import("viem");
-        const { sepolia } = await import("viem/chains");
 
         console.log(
           `[Bundle] Creating ${isV3 ? "policy V3" : "market V1"}: "${item.question.slice(0, 60)}..."`
@@ -682,7 +731,6 @@ export default function CreateMarket() {
         }
 
         const walletClient = createWalletClient({
-          chain: sepolia,
           transport: custom(selectedProvider),
         });
 
@@ -694,7 +742,9 @@ export default function CreateMarket() {
           ...(maxFeePerGas ? { maxFeePerGas } : {}),
           ...(maxPriorityFeePerGas ? { maxPriorityFeePerGas } : {}),
           ...(nonce !== undefined ? { nonce } : {}),
-          chain: sepolia,
+          // chain: null disables viem's assertCurrentChain validation.
+          // We already verified the chain manually above (eth_chainId check after switch).
+          chain: null,
           account: activeAccount,
         });
         console.log("[Bundle] TX sent:", txHash);
@@ -1192,48 +1242,123 @@ export default function CreateMarket() {
                   )}
 
                   {isV3 && (
-                    <div className="rounded-xl border border-indigo-700/40 bg-indigo-950/20 p-3">
-                      <p className="text-xs font-semibold text-indigo-200 mb-1">
-                        Reglas onchain V3 (evita payout cap inesperado)
-                      </p>
-                      <p className="text-[11px] text-gray-300">
-                        `maxPayoutWei` se define igual al campo <strong>Capital cobertura Tier 2 (ETH)</strong>.
-                        Si este valor es bajo, el viajero no cobrará 50%/100% del ticket aunque haya breach.
-                      </p>
-                      <div className="mt-2 space-y-1 text-[11px] text-gray-300">
-                        <p>
-                          Ticket estimado:{" "}
-                          <span className="text-white font-medium">
-                            {ticketEthEstimate !== null ? `${ticketEthEstimate.toFixed(6)} ETH` : "—"}
-                          </span>
-                          {" "}({DEFAULT_ETH_PRICE_USD.toLocaleString()} USD/ETH)
+                    <>
+                      <div className="rounded-xl border border-indigo-700/40 bg-indigo-950/20 p-3">
+                        <p className="text-xs font-semibold text-indigo-200 mb-1">
+                          Reglas onchain V3 (evita payout cap inesperado)
                         </p>
-                        <p>
-                          Tier 1 objetivo (50% ticket):{" "}
-                          <span className="text-white font-medium">
-                            {tier1TicketEthEstimate !== null ? `${tier1TicketEthEstimate.toFixed(6)} ETH` : "—"}
-                          </span>
+                        <p className="text-[11px] text-gray-300">
+                          `maxPayoutWei` se define igual al campo <strong>Capital cobertura Tier 2 (ETH)</strong>.
+                          Si este valor es bajo, el viajero no cobrará 50%/100% del ticket aunque haya breach.
                         </p>
-                        <p>
-                          Tier 2 objetivo (100% ticket):{" "}
-                          <span className="text-white font-medium">
-                            {ticketEthEstimate !== null ? `${ticketEthEstimate.toFixed(6)} ETH` : "—"}
-                          </span>
-                        </p>
+                        <div className="mt-2 space-y-1 text-[11px] text-gray-300">
+                          <p>
+                            Ticket estimado:{" "}
+                            <span className="text-white font-medium">
+                              {ticketEthEstimate !== null ? `${ticketEthEstimate.toFixed(6)} ETH` : "—"}
+                            </span>
+                            {" "}({DEFAULT_ETH_PRICE_USD.toLocaleString()} USD/ETH)
+                          </p>
+                          <p>
+                            Tier 1 objetivo (50% ticket):{" "}
+                            <span className="text-white font-medium">
+                              {tier1TicketEthEstimate !== null ? `${tier1TicketEthEstimate.toFixed(6)} ETH` : "—"}
+                            </span>
+                          </p>
+                          <p>
+                            Tier 2 objetivo (100% ticket):{" "}
+                            <span className="text-white font-medium">
+                              {ticketEthEstimate !== null ? `${ticketEthEstimate.toFixed(6)} ETH` : "—"}
+                            </span>
+                          </p>
+                        </div>
+                        {coverageAdequacy.hasCoverage && coverageAdequacy.isEnoughForTicket && (
+                          <p className="mt-2 text-[11px] text-emerald-300">
+                            Cobertura suficiente para cubrir 100% del ticket en Tier 2.
+                          </p>
+                        )}
+                        {coverageAdequacy.hasCoverage && !coverageAdequacy.isEnoughForTicket && (
+                          <p className="mt-2 text-[11px] text-amber-300">
+                            Cobertura insuficiente: faltan{" "}
+                            {coverageAdequacy.gapEth !== null ? coverageAdequacy.gapEth.toFixed(6) : "—"} ETH para cubrir
+                            100% del ticket.
+                          </p>
+                        )}
                       </div>
-                      {coverageAdequacy.hasCoverage && coverageAdequacy.isEnoughForTicket && (
-                        <p className="mt-2 text-[11px] text-emerald-300">
-                          Cobertura suficiente para cubrir 100% del ticket en Tier 2.
+
+                      <div className="rounded-xl border border-cyan-700/40 bg-cyan-950/20 p-3">
+                        <p className="text-xs font-semibold text-cyan-200 mb-1">
+                          Simulación previa de firma (1 viajero + 1 asegurador)
                         </p>
-                      )}
-                      {coverageAdequacy.hasCoverage && !coverageAdequacy.isEnoughForTicket && (
-                        <p className="mt-2 text-[11px] text-amber-300">
-                          Cobertura insuficiente: faltan{" "}
-                          {coverageAdequacy.gapEth !== null ? coverageAdequacy.gapEth.toFixed(6) : "—"} ETH para cubrir
-                          100% del ticket.
+                        <p className="text-[11px] text-gray-300 mb-2">
+                          Modelo V3 real: el viajero cobra desde la cobertura (NO) y la prima siempre la retiene el asegurador.
                         </p>
-                      )}
-                    </div>
+                        {v3PreSignSimulation ? (
+                          <>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-[11px]">
+                              <div className="bg-gray-900/40 border border-gray-700 rounded-lg p-2">
+                                <p className="text-gray-300 font-medium">Tier 1 (50%)</p>
+                                <p className="text-white mt-1">
+                                  Viajero: {formatEthAmount(v3PreSignSimulation.tier1TravelerEth)}
+                                </p>
+                                <p className="text-gray-400">
+                                  {formatUsdApproxFromEth(v3PreSignSimulation.tier1TravelerEth)}
+                                </p>
+                                <p className="text-white mt-1">
+                                  Asegurador: {formatEthAmount(v3PreSignSimulation.tier1InsurerEth)}
+                                </p>
+                              </div>
+                              <div className="bg-gray-900/40 border border-gray-700 rounded-lg p-2">
+                                <p className="text-gray-300 font-medium">Tier 2 (100%)</p>
+                                <p className="text-white mt-1">
+                                  Viajero: {formatEthAmount(v3PreSignSimulation.tier2TravelerEth)}
+                                </p>
+                                <p className="text-gray-400">
+                                  {formatUsdApproxFromEth(v3PreSignSimulation.tier2TravelerEth)}
+                                </p>
+                                <p className="text-white mt-1">
+                                  Asegurador: {formatEthAmount(v3PreSignSimulation.tier2InsurerEth)}
+                                </p>
+                              </div>
+                              <div className="bg-gray-900/40 border border-gray-700 rounded-lg p-2">
+                                <p className="text-gray-300 font-medium">Sin breach</p>
+                                <p className="text-white mt-1">Viajero: 0 ETH</p>
+                                <p className="text-white mt-1">
+                                  Asegurador: {formatEthAmount(v3PreSignSimulation.noBreachInsurerEth)}
+                                </p>
+                                <p className="text-gray-400">
+                                  Incluye prima ({formatEthAmount(v3PreSignSimulation.premiumEth)}).
+                                </p>
+                              </div>
+                            </div>
+                            {(v3PreSignSimulation.tier1GapVsTicketEth !== null || v3PreSignSimulation.tier2GapVsTicketEth !== null) && (
+                              <div className="mt-2 text-[11px] text-gray-300 space-y-1">
+                                {v3PreSignSimulation.tier1GapVsTicketEth !== null && (
+                                  <p>
+                                    Gap Tier 1 vs 50% ticket:{" "}
+                                    <span className="text-white">
+                                      {formatEthAmount(v3PreSignSimulation.tier1GapVsTicketEth)}
+                                    </span>
+                                  </p>
+                                )}
+                                {v3PreSignSimulation.tier2GapVsTicketEth !== null && (
+                                  <p>
+                                    Gap Tier 2 vs 100% ticket:{" "}
+                                    <span className="text-white">
+                                      {formatEthAmount(v3PreSignSimulation.tier2GapVsTicketEth)}
+                                    </span>
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <p className="text-[11px] text-gray-400">
+                            Define cobertura Tier 2 y prima (%) para ver la simulación numérica.
+                          </p>
+                        )}
+                      </div>
+                    </>
                   )}
                 </div>
               </Card>

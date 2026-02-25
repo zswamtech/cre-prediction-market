@@ -4,7 +4,7 @@ import { useAccount, useReadContract } from "wagmi";
 import { encodeAbiParameters, concat, formatEther, hexToString } from "viem";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import {
   PREDICTION_MARKET_ADDRESS,
   PREDICTION_MARKET_ABI,
@@ -86,7 +86,7 @@ type LocalClaimResponse = {
   error?: string;
 };
 
-export default function MarketDetail() {
+function MarketDetailInner() {
   const { id } = useParams();
   const searchParams = useSearchParams();
   const { isConnected, address: userAddress } = useAccount();
@@ -1192,5 +1192,13 @@ export default function MarketDetail() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function MarketDetail() {
+  return (
+    <Suspense fallback={null}>
+      <MarketDetailInner />
+    </Suspense>
   );
 }

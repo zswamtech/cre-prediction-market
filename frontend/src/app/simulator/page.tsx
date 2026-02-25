@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { Suspense, useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   simulateDual,
@@ -589,7 +589,7 @@ function ProductPanel({
 /*  Main page                                                          */
 /* ================================================================== */
 
-export default function SimulatorPage() {
+function SimulatorPageInner() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -1236,5 +1236,13 @@ export default function SimulatorPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function SimulatorPage() {
+  return (
+    <Suspense fallback={null}>
+      <SimulatorPageInner />
+    </Suspense>
   );
 }

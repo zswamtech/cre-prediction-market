@@ -16,6 +16,11 @@ export interface ProductConfig {
   hostRefundIfNo: number;
   breachProbability: number;
   operationalCost: number;
+  /**
+   * Capital reserved by insurer/underwriter when each policy is sold.
+   * This models "automatic pool funding" so claims can be honored.
+   */
+  autoLockPerPolicy: number;
 }
 
 export interface SimulationParams {
@@ -33,10 +38,17 @@ export interface SimulationResult {
   expectedNetPortfolio: number;
   breakEvenBreachProb: number;
   worstCaseReserve: number;
+  worstCaseReserveNoLock: number;
   reserveAtConfidence: number;
   reserveAt95: number;
   reserveAt99: number;
+  reserveAt95NoLock: number;
+  reserveAt99NoLock: number;
   deficitProbability: number;
+  deficitProbabilityNoLock: number;
+  autoLockPerPolicy: number;
+  autoLockTotal: number;
+  reserveCoverageAt99: number;
   /** Histogram of net profit/loss distribution (negative = deficit) */
   netHistogram: { bucket: number; count: number }[];
   /** Histogram of loss-only distribution */
@@ -123,7 +135,16 @@ export function simulatePortfolio(
   config: ProductConfig,
   params: SimulationParams
 ): SimulationResult {
-  const { buyerPremium, hostStake, payoutIfYes, hostRefundIfNo, breachProbability, operationalCost, count } = config;
+  const {
+    buyerPremium,
+    hostStake,
+    payoutIfYes,
+    hostRefundIfNo,
+    breachProbability,
+    operationalCost,
+    count,
+    autoLockPerPolicy,
+  } = config;
   const { trials, confidence, seed } = params;
 
   const inflowPerPolicy = buyerPremium + hostStake;
@@ -136,14 +157,22 @@ export function simulatePortfolio(
   const denom = payoutIfYes - hostRefundIfNo;
   const breakEvenBreachProb = denom > 0 ? netNo / denom : Infinity;
 
-  const deficitYes = Math.max(0, payoutIfYes - inflowPerPolicy);
-  const deficitNo = Math.max(0, hostRefundIfNo - inflowPerPolicy);
+  const lockTotal = autoLockPerPolicy * count;
+
+  const deficitYes = Math.max(0, payoutIfYes - inflowPerPolicy - autoLockPerPolicy);
+  const deficitNo = Math.max(0, hostRefundIfNo - inflowPerPolicy - autoLockPerPolicy);
   const worstCaseReserve = Math.max(deficitYes, deficitNo) * count;
+
+  const deficitYesNoLock = Math.max(0, payoutIfYes - inflowPerPolicy);
+  const deficitNoNoLock = Math.max(0, hostRefundIfNo - inflowPerPolicy);
+  const worstCaseReserveNoLock = Math.max(deficitYesNoLock, deficitNoNoLock) * count;
 
   const rng = mulberry32(seed + count);
   const losses: number[] = [];
+  const lossesNoLock: number[] = [];
   const nets: number[] = [];
   let deficitEvents = 0;
+  let deficitEventsNoLock = 0;
 
   for (let t = 0; t < trials; t++) {
     let yesCount = 0;
@@ -152,14 +181,21 @@ export function simulatePortfolio(
     }
     const noCount = count - yesCount;
     const net = yesCount * netYes + noCount * netNo;
-    const loss = Math.max(0, -net);
+    const lossNoLock = Math.max(0, -net);
+    const loss = Math.max(0, -net - lockTotal);
     losses.push(loss);
+    lossesNoLock.push(lossNoLock);
     nets.push(net);
     if (loss > 0) deficitEvents++;
+    if (lossNoLock > 0) deficitEventsNoLock++;
   }
 
   losses.sort((a, b) => a - b);
+  lossesNoLock.sort((a, b) => a - b);
   nets.sort((a, b) => a - b);
+
+  const reserveAt99 = quantile(losses, 0.99);
+  const reserveAt99NoLock = quantile(lossesNoLock, 0.99);
 
   return {
     nPolicies: count,
@@ -170,10 +206,17 @@ export function simulatePortfolio(
     expectedNetPortfolio,
     breakEvenBreachProb,
     worstCaseReserve,
+    worstCaseReserveNoLock,
     reserveAtConfidence: quantile(losses, confidence),
     reserveAt95: quantile(losses, 0.95),
-    reserveAt99: quantile(losses, 0.99),
+    reserveAt99,
+    reserveAt95NoLock: quantile(lossesNoLock, 0.95),
+    reserveAt99NoLock,
     deficitProbability: deficitEvents / trials,
+    deficitProbabilityNoLock: deficitEventsNoLock / trials,
+    autoLockPerPolicy,
+    autoLockTotal: lockTotal,
+    reserveCoverageAt99: reserveAt99NoLock > 0 ? lockTotal / reserveAt99NoLock : Infinity,
     netHistogram: buildHistogram(nets),
     lossHistogram: buildHistogram(losses),
   };
@@ -233,6 +276,7 @@ export const DEFAULT_PROPERTY: ProductConfig = {
   hostRefundIfNo: 20,
   breachProbability: 0.25,
   operationalCost: 0,
+  autoLockPerPolicy: 0,
 };
 
 export const DEFAULT_FLIGHT: ProductConfig = {
@@ -244,6 +288,7 @@ export const DEFAULT_FLIGHT: ProductConfig = {
   hostRefundIfNo: 20,
   breachProbability: 0.20,
   operationalCost: 0,
+  autoLockPerPolicy: 100,
 };
 
 export const DEFAULT_PARAMS: SimulationParams = {

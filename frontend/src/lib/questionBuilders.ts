@@ -8,6 +8,11 @@ export type PropertyCoverageKind =
   | "weather";
 
 export type FlightCoverageKind = "flight_delay";
+export type FlightQuestionVariant =
+  | "standard"
+  | "oracle_evidence"
+  | "tiered_payout"
+  | "compensation_focus";
 
 export type CoverageKind = PropertyCoverageKind | FlightCoverageKind;
 
@@ -158,9 +163,80 @@ export function buildFlightQuestion(
   travelDate: string,
   delayThresholdMinutes: number
 ): string {
+  return buildFlightQuestionVariant(
+    flightCode,
+    travelDate,
+    delayThresholdMinutes,
+    "standard"
+  );
+}
+
+export function buildFlightQuestionVariant(
+  flightCode: string,
+  travelDate: string,
+  delayThresholdMinutes: number,
+  variant: FlightQuestionVariant
+): string {
   const normalizedFlightCode = normalizeFlightCode(flightCode);
   const normalizedThreshold = normalizeDelayThreshold(delayThresholdMinutes);
   const readableDate = formatDateToDdMmYyyy(travelDate);
-  return `¿Se activó el payout por retraso del vuelo ${normalizedFlightCode} (>=${normalizedThreshold} min) o cancelación el ${readableDate}?`;
+  switch (variant) {
+    case "oracle_evidence":
+      return `¿Según el oracle oficial de vuelo, el vuelo ${normalizedFlightCode} del ${readableDate} registró retraso >= ${normalizedThreshold} min o estado CANCELLED para activar el payout?`;
+    case "tiered_payout":
+      return `¿El vuelo ${normalizedFlightCode} del ${readableDate} incumplió el trigger paramétrico (retraso >= ${normalizedThreshold} min o cancelación) para liquidar payout por tiers (50%/100%)?`;
+    case "compensation_focus":
+      return `¿Corresponde indemnización de la póliza para el vuelo ${normalizedFlightCode} el ${readableDate} por retraso de al menos ${normalizedThreshold} min o cancelación?`;
+    case "standard":
+    default:
+      return `¿Se activó el payout por retraso del vuelo ${normalizedFlightCode} (>=${normalizedThreshold} min) o cancelación el ${readableDate}?`;
+  }
 }
 
+export const FLIGHT_QUESTION_VARIANTS: Array<{
+  id: FlightQuestionVariant;
+  label: string;
+  description: string;
+}> = [
+  {
+    id: "standard",
+    label: "Estándar",
+    description: "Formato directo para jurado y demo.",
+  },
+  {
+    id: "oracle_evidence",
+    label: "Evidencia oracle",
+    description: "Destaca que la decisión depende de fuente oficial.",
+  },
+  {
+    id: "tiered_payout",
+    label: "Payout por tiers",
+    description: "Expone explícitamente lógica 50% / 100%.",
+  },
+  {
+    id: "compensation_focus",
+    label: "Compensación",
+    description: "Enfocada en el valor para el viajero.",
+  },
+];
+
+export function buildFlightQuestionExamples(
+  flightCode: string,
+  travelDate: string,
+  delayThresholdMinutes: number
+): Array<{
+  id: FlightQuestionVariant;
+  label: string;
+  description: string;
+  question: string;
+}> {
+  return FLIGHT_QUESTION_VARIANTS.map((variant) => ({
+    ...variant,
+    question: buildFlightQuestionVariant(
+      flightCode,
+      travelDate,
+      delayThresholdMinutes,
+      variant.id
+    ),
+  }));
+}

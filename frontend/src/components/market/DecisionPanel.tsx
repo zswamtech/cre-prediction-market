@@ -45,6 +45,9 @@ export type FlightOracleData = {
 export function DecisionPanel({
   market,
   isFlightPolicy,
+  isV3,
+  revealFlightOracle,
+  flightReference,
   flightData,
   flightLoading,
   flightError,
@@ -69,6 +72,14 @@ export function DecisionPanel({
     totalNoPool: bigint;
   };
   isFlightPolicy: boolean;
+  isV3: boolean;
+  revealFlightOracle: boolean;
+  flightReference?: {
+    flightId?: string | null;
+    flightDate?: string | null;
+    thresholdMinutes?: number | null;
+    tier2ThresholdMinutes?: number | null;
+  };
   flightData: FlightOracleData | null;
   flightLoading: boolean;
   flightError: string | null;
@@ -85,23 +96,69 @@ export function DecisionPanel({
   onClaim: () => void;
   isProcessing: boolean;
 }) {
+  const thresholdMinutes = flightData?.thresholdMinutes ?? 45;
+  const tier2ThresholdMinutes = flightData?.tier2ThresholdMinutes ?? 90;
+  const delayMinutes = flightData?.delayMinutes ?? null;
+  const normalizedStatus = (flightData?.status ?? "").toUpperCase();
+  const fallbackPayoutTier =
+    normalizedStatus === "CANCELLED"
+      ? 2
+      : typeof delayMinutes === "number"
+        ? delayMinutes >= tier2ThresholdMinutes
+          ? 2
+          : delayMinutes >= thresholdMinutes
+            ? 1
+            : 0
+        : 0;
+  const effectivePayoutTier = flightData?.payoutTier ?? fallbackPayoutTier;
+  const effectivePayoutPercent =
+    flightData?.payoutPercent ??
+    (effectivePayoutTier === 2 ? 100 : effectivePayoutTier === 1 ? 50 : 0);
+  const effectivePayoutReason =
+    flightData?.payoutReason ??
+    (effectivePayoutTier === 2
+      ? "Tier 2 aplicado (>= 90 min o cancelado)."
+      : effectivePayoutTier === 1
+        ? "Tier 1 aplicado (>= 45 min)."
+        : "Sin payout.");
+
   return (
     <div className="space-y-6">
       {/* Pool */}
       <Card>
-        <h2 className="text-lg font-semibold text-white mb-2">Pool de garantias</h2>
+        <h2 className="text-lg font-semibold text-white mb-2">
+          {isFlightPolicy
+            ? isV3
+              ? "Pool financiero (insurance-first)"
+              : "Pool de mercado (V1 compat)"
+            : "Pool de garantias"}
+        </h2>
         <p className="text-xs text-gray-500 mb-4">
-          SI = se activa payout · NO = sin reclamo
+          {isFlightPolicy
+            ? isV3
+              ? "SI = prima del viajero · NO = capital de cobertura del asegurador"
+              : "Modo V1: SI/NO son pools de resultado (no póliza ticket-based)."
+            : "SI = se activa payout · NO = sin reclamo"}
         </p>
+        {isFlightPolicy && !isV3 && (
+          <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-200">
+            Estás en V1 compat: el claim paga por pool ganador, no por porcentaje del valor del ticket.
+            Para payout por Tier (50%/100%) debes usar mercado V3.
+          </div>
+        )}
         <div className="space-y-3">
           <div className="flex justify-between items-center p-3 bg-gray-900/50 rounded-lg">
-            <span className="text-gray-300">Pool SI (payout)</span>
+            <span className="text-gray-300">
+              {isFlightPolicy ? "Pool SI (prima viajero)" : "Pool SI (payout)"}
+            </span>
             <span className="font-mono text-green-400 text-lg">
               {formatEther(market.totalYesPool)} ETH
             </span>
           </div>
           <div className="flex justify-between items-center p-3 bg-gray-900/50 rounded-lg">
-            <span className="text-gray-300">Pool NO (sin reclamo)</span>
+            <span className="text-gray-300">
+              {isFlightPolicy ? "Pool NO (cobertura asegurador)" : "Pool NO (sin reclamo)"}
+            </span>
             <span className="font-mono text-red-400 text-lg">
               {formatEther(market.totalNoPool)} ETH
             </span>
@@ -115,6 +172,29 @@ export function DecisionPanel({
           <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
             <span>✈️</span> Oracle de vuelo
           </h2>
+          {!revealFlightOracle && (
+            <div className="rounded-lg border border-sky-600/40 bg-sky-950/20 p-3 text-sm text-sky-100 space-y-2">
+              <p className="font-medium">Resultado del vuelo bloqueado hasta la liquidación.</p>
+              <p className="text-xs text-sky-200/90">
+                Etapa actual: compra/fondeo. Se mostrará estado real del vuelo y payout aplicable
+                después de ejecutar settlement (CRE).
+              </p>
+              <div className="text-xs text-sky-200/80 space-y-1">
+                {flightReference?.flightId && (
+                  <p>Vuelo configurado: {flightReference.flightId}</p>
+                )}
+                {flightReference?.flightDate && (
+                  <p>Fecha de póliza: {flightReference.flightDate}</p>
+                )}
+                <p>
+                  Threshold Tier 1: {flightReference?.thresholdMinutes ?? 45} min · Tier 2:{" "}
+                  {flightReference?.tier2ThresholdMinutes ?? 90} min/cancelado
+                </p>
+              </div>
+            </div>
+          )}
+          {revealFlightOracle && (
+            <>
           {flightLoading && (
             <p className="text-gray-400 text-sm animate-pulse">Consultando oracle de vuelos...</p>
           )}
@@ -182,40 +262,40 @@ export function DecisionPanel({
                   {/* Tier 1 */}
                   <div
                     className={`flex items-center justify-between p-2.5 rounded-lg border transition ${
-                      flightData.payoutTier === 1
+                      effectivePayoutTier === 1
                         ? "border-amber-500 bg-amber-500/10"
                         : "border-gray-700/50 bg-gray-900/30"
                     }`}
                   >
                     <div className="flex items-center gap-2">
-                      {flightData.payoutTier === 1 && (
+                      {effectivePayoutTier === 1 && (
                         <span className="text-amber-400">●</span>
                       )}
-                      <span className={`text-sm ${flightData.payoutTier === 1 ? "text-amber-200" : "text-gray-400"}`}>
-                        Tier 1: Retraso {">="} {flightData.thresholdMinutes ?? 45} min
+                      <span className={`text-sm ${effectivePayoutTier === 1 ? "text-amber-200" : "text-gray-400"}`}>
+                        Tier 1: Retraso {">="} {thresholdMinutes} min
                       </span>
                     </div>
-                    <span className={`font-bold text-sm ${flightData.payoutTier === 1 ? "text-amber-300" : "text-gray-500"}`}>
+                    <span className={`font-bold text-sm ${effectivePayoutTier === 1 ? "text-amber-300" : "text-gray-500"}`}>
                       50%
                     </span>
                   </div>
                   {/* Tier 2 */}
                   <div
                     className={`flex items-center justify-between p-2.5 rounded-lg border transition ${
-                      flightData.payoutTier === 2
+                      effectivePayoutTier === 2
                         ? "border-green-500 bg-green-500/10"
                         : "border-gray-700/50 bg-gray-900/30"
                     }`}
                   >
                     <div className="flex items-center gap-2">
-                      {flightData.payoutTier === 2 && (
+                      {effectivePayoutTier === 2 && (
                         <span className="text-green-400">●</span>
                       )}
-                      <span className={`text-sm ${flightData.payoutTier === 2 ? "text-green-200" : "text-gray-400"}`}>
-                        Tier 2: Retraso {">="} {flightData.tier2ThresholdMinutes ?? 90} min o cancelado
+                      <span className={`text-sm ${effectivePayoutTier === 2 ? "text-green-200" : "text-gray-400"}`}>
+                        Tier 2: Retraso {">="} {tier2ThresholdMinutes} min o cancelado
                       </span>
                     </div>
-                    <span className={`font-bold text-sm ${flightData.payoutTier === 2 ? "text-green-300" : "text-gray-500"}`}>
+                    <span className={`font-bold text-sm ${effectivePayoutTier === 2 ? "text-green-300" : "text-gray-500"}`}>
                       100%
                     </span>
                   </div>
@@ -226,10 +306,10 @@ export function DecisionPanel({
                   <div className="mt-3 pt-3 border-t border-gray-700/50 text-center">
                     <p className="text-xs text-gray-400 mb-1">Payout aplicable</p>
                     <p className="text-2xl font-bold text-white">
-                      {flightData.payoutPercent ?? 0}%
+                      {effectivePayoutPercent}%
                     </p>
                     <p className="text-xs text-gray-500 mt-1">
-                      {flightData.payoutReason}
+                      {effectivePayoutReason}
                     </p>
                   </div>
                 )}
@@ -257,6 +337,8 @@ export function DecisionPanel({
           )}
           {!flightLoading && !flightError && !flightData && (
             <p className="text-gray-400 text-sm">No hay datos de vuelo disponibles.</p>
+          )}
+            </>
           )}
         </Card>
       )}
@@ -367,6 +449,7 @@ export function DecisionPanel({
             </p>
           </div>
           <button
+            type="button"
             onClick={onClaim}
             disabled={isProcessing}
             className="w-full mt-4 bg-green-600 hover:bg-green-700 disabled:bg-gray-700 text-white font-bold py-3 rounded-xl transition"

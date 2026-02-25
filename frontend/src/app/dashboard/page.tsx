@@ -4,8 +4,14 @@ import { useState } from "react";
 import { useAccount } from "wagmi";
 import { ConnectKitButton } from "connectkit";
 import Link from "next/link";
-import { PREDICTION_MARKET_ADDRESS, PREDICTION_MARKET_ABI } from "@/lib/contract";
+import {
+  PREDICTION_MARKET_ADDRESS,
+  PREDICTION_MARKET_ABI,
+  PREDICTION_MARKET_V3_ADDRESS,
+  PREDICTION_MARKET_V3_ABI,
+} from "@/lib/contract";
 import { useUserPositions } from "@/hooks/useUserPositions";
+import type { Position } from "@/hooks/useUserPositions";
 import { useReliableWrite } from "@/hooks/useReliableWrite";
 import type { FilterOption } from "@/components/dashboard/FilterTabs";
 import { FilterTabs } from "@/components/dashboard/FilterTabs";
@@ -16,27 +22,30 @@ export default function DashboardPage() {
   const { positions, summary, isLoading, isConnected, refetch } = useUserPositions();
   const { address } = useAccount();
   const [filter, setFilter] = useState<FilterOption>("all");
+  const [versionFilter, setVersionFilter] = useState<"all" | "v1" | "v3">("all");
 
   const { writeContract, isPending: isClaiming, isConfirming, isSuccess } = useReliableWrite();
-  const [claimingMarketId, setClaimingMarketId] = useState<number | null>(null);
+  const [claimingPositionKey, setClaimingPositionKey] = useState<string | null>(null);
 
-  const handleClaim = (marketId: number) => {
-    setClaimingMarketId(marketId);
+  const handleClaim = (position: Position) => {
+    setClaimingPositionKey(position.key);
     writeContract({
-      address: PREDICTION_MARKET_ADDRESS,
-      abi: PREDICTION_MARKET_ABI,
+      address: position.version === "v3" ? PREDICTION_MARKET_V3_ADDRESS : PREDICTION_MARKET_ADDRESS,
+      abi: position.version === "v3" ? PREDICTION_MARKET_V3_ABI : PREDICTION_MARKET_ABI,
       functionName: "claim",
-      args: [BigInt(marketId)],
+      args: [BigInt(position.marketId)],
     });
   };
 
-  // Refetch after successful claim
-  if (isSuccess && claimingMarketId !== null) {
+  if (isSuccess && claimingPositionKey !== null) {
     refetch();
-    setClaimingMarketId(null);
+    setClaimingPositionKey(null);
   }
 
-  const filtered = filter === "all" ? positions : positions.filter((p) => p.status === filter);
+  const statusFiltered = filter === "all" ? positions : positions.filter((p) => p.status === filter);
+  const filtered = versionFilter === "all"
+    ? statusFiltered
+    : statusFiltered.filter((p) => p.version === versionFilter);
 
   const counts: Record<FilterOption, number> = {
     all: positions.length,
@@ -46,7 +55,6 @@ export default function DashboardPage() {
     lost: positions.filter((p) => p.status === "lost").length,
   };
 
-  // Not connected state
   if (!isConnected) {
     return (
       <div className="container mx-auto px-4 py-16 max-w-4xl">
@@ -64,7 +72,6 @@ export default function DashboardPage() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-6xl">
-      {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-white mb-1">Mi Dashboard</h1>
         <p className="text-gray-500 font-mono text-sm">
@@ -72,7 +79,6 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {/* Loading */}
       {isLoading ? (
         <div className="space-y-6 animate-pulse">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -89,33 +95,62 @@ export default function DashboardPage() {
         </div>
       ) : (
         <>
-          {/* Summary Stats */}
           <div className="mb-8">
             <SummaryStats summary={summary} />
           </div>
 
-          {/* Filter Tabs */}
           <div className="mb-6">
             <FilterTabs active={filter} onChange={setFilter} counts={counts} />
           </div>
 
-          {/* Positions Grid */}
+          <div className="mb-6 inline-flex items-center gap-2 rounded-xl border border-gray-700 bg-gray-900/40 p-1">
+            <button
+              type="button"
+              onClick={() => setVersionFilter("all")}
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                versionFilter === "all"
+                  ? "bg-purple-600/30 text-purple-200 border border-purple-500/40"
+                  : "text-gray-400 hover:text-gray-200"
+              }`}
+            >
+              Todas
+            </button>
+            <button
+              type="button"
+              onClick={() => setVersionFilter("v1")}
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                versionFilter === "v1"
+                  ? "bg-indigo-600/30 text-indigo-200 border border-indigo-500/40"
+                  : "text-gray-400 hover:text-gray-200"
+              }`}
+            >
+              V1
+            </button>
+            <button
+              type="button"
+              onClick={() => setVersionFilter("v3")}
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                versionFilter === "v3"
+                  ? "bg-sky-600/30 text-sky-200 border border-sky-500/40"
+                  : "text-gray-400 hover:text-gray-200"
+              }`}
+            >
+              V3
+            </button>
+          </div>
+
           {filtered.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filtered.map((position) => (
                 <PositionCard
-                  key={position.marketId}
+                  key={position.key}
                   position={position}
                   onClaim={handleClaim}
-                  claiming={
-                    (isClaiming || isConfirming) &&
-                    claimingMarketId === position.marketId
-                  }
+                  claiming={(isClaiming || isConfirming) && claimingPositionKey === position.key}
                 />
               ))}
             </div>
           ) : positions.length > 0 ? (
-            /* Has positions but none match filter */
             <div className="text-center py-16">
               <div className="text-4xl mb-4">🔍</div>
               <p className="text-gray-400">
@@ -123,7 +158,6 @@ export default function DashboardPage() {
               </p>
             </div>
           ) : (
-            /* No positions at all */
             <div className="text-center py-16">
               <div className="text-6xl mb-6">📊</div>
               <h2 className="text-xl font-semibold text-white mb-3">

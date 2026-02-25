@@ -1,6 +1,15 @@
 // V1 Contract (current deployment)
 export const PREDICTION_MARKET_ADDRESS = "0x33e7D49d945f3b20e4426440B5DdBB86269689EF" as const;
 
+// V3 Contract — parametric insurance model (deploy separately)
+const V3_PLACEHOLDER = "0x0000000000000000000000000000000000000000";
+const envV3Address = process.env.NEXT_PUBLIC_PREDICTION_MARKET_V3_ADDRESS;
+export const PREDICTION_MARKET_V3_ADDRESS = (
+  envV3Address && /^0x[a-fA-F0-9]{40}$/.test(envV3Address)
+    ? envV3Address
+    : V3_PLACEHOLDER
+) as `0x${string}`;
+
 // V2 Contract with Disputes (deploy new contract to use)
 // export const PREDICTION_MARKET_V2_ADDRESS = "0x..." as const;
 
@@ -188,6 +197,167 @@ export const PREDICTION_MARKET_V2_ABI = [
         ],
       },
     ],
+  },
+] as const;
+
+// V3 ABI — PredictionMarketV3 (parametric insurance model)
+// stake(marketId, isInsured): true=policyholder/viajero, false=provider/asegurador
+// claim(marketId): tier-based payout; contract determines entitlement by stake type
+export const PREDICTION_MARKET_V3_ABI = [
+  {
+    name: "getMarket",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "marketId", type: "uint256" }],
+    outputs: [
+      {
+        name: "",
+        type: "tuple",
+        components: [
+          { name: "creator", type: "address" },
+          { name: "createdAt", type: "uint48" },
+          { name: "settledAt", type: "uint48" },
+          { name: "settled", type: "bool" },
+          { name: "appliedTier", type: "uint8" },
+          { name: "appliedPayoutBps", type: "uint16" },
+          { name: "confidence", type: "uint16" },
+          { name: "reportHash", type: "bytes32" },
+          {
+            name: "config",
+            type: "tuple",
+            components: [
+              { name: "policyType", type: "uint8" },
+              { name: "oracleRef", type: "bytes32" },
+              { name: "startTime", type: "uint48" },
+              { name: "endTime", type: "uint48" },
+              { name: "thresholdPrimary", type: "uint32" },
+              { name: "thresholdSecondary", type: "uint32" },
+              { name: "payoutBpsTier1", type: "uint16" },
+              { name: "payoutBpsTier2", type: "uint16" },
+              { name: "maxPayoutWei", type: "uint256" },
+            ],
+          },
+          { name: "totalInsuredPool", type: "uint256" },
+          { name: "totalProviderPool", type: "uint256" },
+          { name: "totalPaidOut", type: "uint256" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "getStake",
+    type: "function",
+    stateMutability: "view",
+    inputs: [
+      { name: "marketId", type: "uint256" },
+      { name: "user", type: "address" },
+    ],
+    outputs: [
+      {
+        name: "",
+        type: "tuple",
+        components: [
+          { name: "amount", type: "uint256" },
+          { name: "isInsured", type: "bool" },
+          { name: "claimed", type: "bool" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "previewClaim",
+    type: "function",
+    stateMutability: "view",
+    inputs: [
+      { name: "marketId", type: "uint256" },
+      { name: "user", type: "address" },
+    ],
+    outputs: [{ name: "payout", type: "uint256" }],
+  },
+  {
+    name: "getNextMarketId",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "createPolicy",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      {
+        name: "config",
+        type: "tuple",
+        components: [
+          { name: "policyType", type: "uint8" },
+          { name: "oracleRef", type: "bytes32" },
+          { name: "startTime", type: "uint48" },
+          { name: "endTime", type: "uint48" },
+          { name: "thresholdPrimary", type: "uint32" },
+          { name: "thresholdSecondary", type: "uint32" },
+          { name: "payoutBpsTier1", type: "uint16" },
+          { name: "payoutBpsTier2", type: "uint16" },
+          { name: "maxPayoutWei", type: "uint256" },
+        ],
+      },
+    ],
+    outputs: [{ name: "marketId", type: "uint256" }],
+  },
+  {
+    name: "stake",
+    type: "function",
+    stateMutability: "payable",
+    inputs: [
+      { name: "marketId", type: "uint256" },
+      { name: "isInsured", type: "bool" },
+    ],
+    outputs: [],
+  },
+  {
+    name: "requestSettlement",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "marketId", type: "uint256" }],
+    outputs: [],
+  },
+  {
+    name: "claim",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "marketId", type: "uint256" }],
+    outputs: [],
+  },
+  {
+    name: "togglePause",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [],
+    outputs: [],
+  },
+  {
+    name: "globalPaused",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    name: "owner",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
+  },
+  {
+    name: "onReport",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "metadata", type: "bytes" },
+      { name: "report", type: "bytes" },
+    ],
+    outputs: [],
   },
 ] as const;
 

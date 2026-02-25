@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useAccount, usePublicClient } from "wagmi";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -164,7 +164,7 @@ function statusLabel(status: DraftPolicyItem["status"]): string {
   }
 }
 
-export default function CreateMarket() {
+function CreateMarketInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isConnected, address } = useAccount();
@@ -1699,5 +1699,13 @@ export default function CreateMarket() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function CreateMarket() {
+  return (
+    <Suspense fallback={null}>
+      <CreateMarketInner />
+    </Suspense>
   );
 }

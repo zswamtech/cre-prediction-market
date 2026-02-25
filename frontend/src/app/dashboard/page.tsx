@@ -49,6 +49,7 @@ export default function DashboardPage() {
 
   const counts: Record<FilterOption, number> = {
     all: positions.length,
+    created: positions.filter((p) => p.status === "created").length,
     active: positions.filter((p) => p.status === "active").length,
     claimable: positions.filter((p) => p.status === "claimable").length,
     claimed: positions.filter((p) => p.status === "claimed").length,

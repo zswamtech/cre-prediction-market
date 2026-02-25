@@ -13,7 +13,7 @@ import {
 const V3_PLACEHOLDER = "0x0000000000000000000000000000000000000000";
 const BPS_DENOMINATOR = 10_000n;
 
-export type PositionStatus = "active" | "claimable" | "claimed" | "lost";
+export type PositionStatus = "active" | "claimable" | "claimed" | "lost" | "created";
 export type MarketVersion = "v1" | "v3";
 
 export type Position = {
@@ -358,8 +358,39 @@ export function useUserPositions() {
 
       const market = marketResult.result;
       const stake = stakeResult.result;
+      const isCreator = market.creator.toLowerCase() === address?.toLowerCase();
 
-      if (stake.amount === 0n) continue;
+      if (stake.amount === 0n) {
+        if (!isCreator) continue;
+        // Creator with no stake: show as "created" so they can see and stake
+        positionsList.push({
+          key: `v3-${i}`,
+          version: "v3",
+          marketId: i,
+          createdAt: Number(market.createdAt),
+          question: formatV3Question(i, {
+            config: {
+              policyType: Number(market.config.policyType),
+              oracleRef: market.config.oracleRef,
+              startTime: Number(market.config.startTime),
+            },
+          }),
+          side: 1,
+          amount: 0n,
+          settled: market.settled,
+          outcome: 1,
+          confidence: 0,
+          isWinner: false,
+          payout: 0n,
+          claimed: false,
+          status: "created",
+          totalYesPool: market.totalInsuredPool,
+          totalNoPool: market.totalProviderPool,
+          appliedTier: Number(market.appliedTier),
+          appliedPayoutBps: Number(market.appliedPayoutBps),
+        });
+        continue;
+      }
 
       const previewResult = previewsV3?.[i];
       const previewPayout =
@@ -431,8 +462,9 @@ export function useUserPositions() {
     const statusOrder: Record<PositionStatus, number> = {
       claimable: 0,
       active: 1,
-      claimed: 2,
-      lost: 3,
+      created: 2,
+      claimed: 3,
+      lost: 4,
     };
 
     positionsList.sort((a, b) => {

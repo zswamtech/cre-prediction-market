@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import type { Position } from "@/hooks/useUserPositions";
 
 const statusBadge: Record<Position["status"], { variant: "active" | "settled" | "claimed" | "error" | "pending"; label: string }> = {
+  created: { variant: "pending", label: "Creada" },
   active: { variant: "active", label: "Activa" },
   claimable: { variant: "settled", label: "Por reclamar" },
   claimed: { variant: "claimed", label: "Reclamada" },
@@ -42,6 +43,14 @@ export function PositionCard({
             {position.question}
           </h3>
         </Link>
+
+        {position.status === "created" && (
+          <div className="mb-3 rounded-lg border border-yellow-600/30 bg-yellow-950/20 px-3 py-2">
+            <p className="text-[11px] text-yellow-200">
+              Poliza creada sin stake. Ve al mercado para participar como asegurador o viajero.
+            </p>
+          </div>
+        )}
 
         {position.version === "v3" && position.status === "active" && (
           <div className="mb-3 rounded-lg border border-sky-600/30 bg-sky-950/20 px-3 py-2">
@@ -89,6 +98,14 @@ export function PositionCard({
           )}
         </div>
       </div>
+
+      {position.status === "created" && (
+        <Link href={marketHref}>
+          <Button variant="primary" size="sm" className="w-full">
+            Ir al mercado para stakear
+          </Button>
+        </Link>
+      )}
 
       {position.status === "claimable" && (
         <Button

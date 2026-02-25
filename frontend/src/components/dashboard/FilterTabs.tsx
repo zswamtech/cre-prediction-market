@@ -4,6 +4,7 @@ type FilterOption = "all" | PositionStatus;
 
 const filters: { value: FilterOption; label: string }[] = [
   { value: "all", label: "Todas" },
+  { value: "created", label: "Creadas" },
   { value: "active", label: "Activas" },
   { value: "claimable", label: "Por reclamar" },
   { value: "claimed", label: "Reclamadas" },
